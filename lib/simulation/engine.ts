@@ -166,6 +166,9 @@ export class PlantEngine {
       robotUncertaintyMs: 0,
       robotOffsetMs: 0,
     };
+    // A scenario event at t=0 establishes initial conditions (for example a
+    // clock contract) before the first emitted observation.
+    for (const f of this.scheduledFaults) if (f.atMs === init.startMs) this.applyFault(f.kind, f.params);
     // Offset cell B so the two cells are not in lockstep: it starts mid-cut.
     const b = this.state.cells["CELL-B"];
     b.cycleSeq = 100;

@@ -40,6 +40,7 @@ const SUB: Record<string, Array<{ href: string; label: string }>> = {
 };
 
 const SECONDARY = [
+  { href: "/explain", label: "How it decides" },
   { href: "/reports", label: "Reports" },
   { href: "/costs", label: "Costs" },
   { href: "/data-health", label: "Data health" },

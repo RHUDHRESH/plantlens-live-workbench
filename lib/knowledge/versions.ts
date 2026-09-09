@@ -173,7 +173,6 @@ export function diffVersions(a: KnowledgeVersion, b: KnowledgeVersion): VersionD
   const ea = byId(a.edges);
   const eb = byId(b.edges);
   const ra = byId(a.requirements);
-  const rb = byId(b.requirements);
   const ma = new Set(a.mappings.map((m) => m.alias));
   const same = (x: unknown, y: unknown) => JSON.stringify(x) === JSON.stringify(y);
   return {

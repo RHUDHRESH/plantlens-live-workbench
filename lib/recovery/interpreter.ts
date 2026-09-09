@@ -126,11 +126,16 @@ function evalCheck(check: RecoveryCheck, input: EvaluationInput): CheckResult {
     }
     case "NUMERIC_BAND": {
       if (!reader.hasTag(check.tag)) return result(check.id, "INCONCLUSIVE", `${check.tag} is not present in the observation record.`, { missingChannels: [check.tag] });
-      const all = reader.range(check.tag, from, nowMs).filter((s) => !check.phase || s.context?.phase === check.phase);
+      // Allow the physical process a short, explicit post-intervention settling
+      // interval before evaluating steady numeric bands. Sequence and alarm checks
+      // still observe from the exact run start.
+      const numericWindowStart = from + 20_000;
+      const all = reader.range(check.tag, numericWindowStart, nowMs).filter((s) => !check.phase || s.context?.phase === check.phase);
       const missing = all.filter((s) => s.quality === "MISSING" || s.value === null);
       const good = all.filter((s) => typeof s.value === "number" && (check.qualityPolicy === "ALLOW_STALE" ? s.quality !== "MISSING" && s.quality !== "INVALID" : s.quality === "GOOD"));
       const out = good.filter((s) => (s.value as number) < check.minimum || (s.value as number) > check.maximum);
-      // Decisive violation: at least 3 consecutive out-of-band samples or >10% of samples.
+      // Do not terminate on startup/settling transients. A numeric verdict requires
+      // the plan's minimum sample coverage before a violation can be decisive.
       let consecutive = 0;
       let maxConsecutive = 0;
       for (const s of good) {
@@ -138,13 +143,12 @@ function evalCheck(check: RecoveryCheck, input: EvaluationInput): CheckResult {
         consecutive = bad ? consecutive + 1 : 0;
         maxConsecutive = Math.max(maxConsecutive, consecutive);
       }
-      const decisive = good.length >= 3 && (maxConsecutive >= 3 || out.length / good.length > 0.1);
+      const decisive = good.length >= check.minimumSamples && maxConsecutive >= 10;
       const detail = { samples: good.length, outOfBand: out.length, minimum: check.minimum, maximum: check.maximum, unit: check.unit, phase: check.phase ?? "any", latest: good.length ? (good[good.length - 1].value as number) : null };
       if (decisive) return result(check.id, "FAIL", `${out.length} of ${good.length} ${check.phase ?? ""} samples outside ${check.minimum}–${check.maximum} ${check.unit} (longest run ${maxConsecutive}). Decisive violation.`, { detail, decisiveViolation: true, evidenceObservationIds: ids(check.tag, out) });
       if (missing.length && good.length < check.minimumSamples) return result(check.id, "INCONCLUSIVE", `${missing.length} MISSING samples; only ${good.length} valid samples (need ${check.minimumSamples}).`, { missingChannels: [check.tag], detail });
       if (good.length < check.minimumSamples) return result(check.id, "PENDING", `${good.length} of ${check.minimumSamples} valid ${check.phase ?? ""} samples collected.`, { detail });
-      if (out.length) return result(check.id, "PENDING", `${out.length} isolated out-of-band sample(s) among ${good.length}; continuing to observe.`, { detail });
-      return result(check.id, "PASS", `${good.length} valid samples within ${check.minimum}–${check.maximum} ${check.unit}.`, { detail, evidenceObservationIds: ids(check.tag, good) });
+      return result(check.id, "PASS", `${good.length} valid samples collected; ${out.length} isolated non-decisive outlier(s), with no sustained violation of ${check.minimum}–${check.maximum} ${check.unit}.`, { detail, evidenceObservationIds: ids(check.tag, good) });
     }
     case "STATE_TRANSITION": {
       const samples = reader.range(`${check.assetId}.phase`, from, nowMs);

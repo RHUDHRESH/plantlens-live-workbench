@@ -31,7 +31,7 @@ export const RECOVERY_TEMPLATES: RecoveryTemplate[] = [
     checks: [
       { id: "CHK-QUALITY", kind: "SOURCE_QUALITY", tags: ["AIR-HDR-01.header_pressure", "FIX-01.clamp_proof", "ROB-01.robot_clear", "CNC-01.cycle_ready"], qualityPolicy: "REQUIRE_GOOD", requirementRef: "REQ-DEMO-CYCLES-01" },
       { id: "CHK-MODE", kind: "MODE_REQUIRED", assetId: "CNC-01", recipe: "PART-A", mode: "AUTO", requirementRef: "REQ-DEMO-CYCLES-01" },
-      { id: "CHK-AIR", kind: "NUMERIC_BAND", tag: "AIR-HDR-01.header_pressure", minimum: 5.5, maximum: 6.5, unit: "bar", phase: "CLAMPING", qualityPolicy: "REQUIRE_GOOD", minimumSamples: 5, requirementRef: "REQ-DEMO-AIR-01" },
+      { id: "CHK-AIR", kind: "NUMERIC_BAND", tag: "AIR-HDR-01.header_pressure", minimum: 5.5, maximum: 6.5, unit: "bar", qualityPolicy: "REQUIRE_GOOD", minimumSamples: 5, requirementRef: "REQ-DEMO-AIR-01" },
       { id: "CHK-HANDSHAKE", kind: "EVENT_SEQUENCE", events: ["ROB-01.robot_clear", "FIX-01.clamp_proof", "CNC-01.cycle_ready"], maximumElapsedSeconds: 8, minimumValidOccurrences: 5, requirementRef: "REQ-DEMO-SEQUENCE-01" },
       { id: "CHK-ACCEPT", kind: "DOWNSTREAM_ACK", trigger: "CNC-01.cycle_complete", acknowledgement: "ASM-01.downstream_accept", maximumElapsedSeconds: 4, minimumValidOccurrences: 5, requirementRef: "REQ-DEMO-HANDOFF-01" },
       { id: "CHK-CYCLES", kind: "COMPLETE_CYCLES", assetId: "CNC-01", count: 5, requirementRef: "REQ-DEMO-CYCLES-01" },
@@ -61,7 +61,7 @@ export const RECOVERY_TEMPLATES: RecoveryTemplate[] = [
     checks: [
       { id: "CHK-QUALITY", kind: "SOURCE_QUALITY", tags: ["AIR-HDR-01.header_pressure", "CNC-02.clamp_proof"], qualityPolicy: "REQUIRE_GOOD", requirementRef: "REQ-DEMO-CYCLES-01" },
       { id: "CHK-MODE", kind: "MODE_REQUIRED", assetId: "CNC-02", recipe: "PART-A", mode: "AUTO", requirementRef: "REQ-DEMO-CYCLES-01" },
-      { id: "CHK-AIR", kind: "NUMERIC_BAND", tag: "AIR-HDR-01.header_pressure", minimum: 5.5, maximum: 6.5, unit: "bar", phase: "CLAMPING", qualityPolicy: "REQUIRE_GOOD", minimumSamples: 5, requirementRef: "REQ-DEMO-AIR-01" },
+      { id: "CHK-AIR", kind: "NUMERIC_BAND", tag: "AIR-HDR-01.header_pressure", minimum: 5.5, maximum: 6.5, unit: "bar", qualityPolicy: "REQUIRE_GOOD", minimumSamples: 5, requirementRef: "REQ-DEMO-AIR-01" },
       { id: "CHK-CLAMP-B", kind: "NUMERIC_BAND", tag: "CNC-02.clamp_delay_s", minimum: 0, maximum: 4, unit: "s", qualityPolicy: "REQUIRE_GOOD", minimumSamples: 5, requirementRef: "REQ-DEMO-AIR-01" },
       { id: "CHK-CYCLES", kind: "COMPLETE_CYCLES", assetId: "CNC-02", count: 5, requirementRef: "REQ-DEMO-CYCLES-01" },
       { id: "CHK-ALARMS", kind: "ALARM_ABSENCE", assetIds: ["CNC-02", "AIR-HDR-01"], severities: ["FAULT"], requirementRef: "REQ-DEMO-AIR-01" },

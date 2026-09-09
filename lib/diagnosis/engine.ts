@@ -115,6 +115,12 @@ function isPhase(s: Sample, phase: MachinePhase): boolean {
   return s.context?.phase === phase;
 }
 
+/** Never compare observations from a previous recipe/mode with the active baseline. */
+function isComparableContext(s: Sample, cell: CellContext | undefined): boolean {
+  if (!cell) return false;
+  return (!s.context?.recipe || s.context.recipe === cell.recipe) && (!s.context?.mode || s.context.mode === cell.mode);
+}
+
 function mk(partial: Omit<Deviation, "id" | "observationIds"> & { observationIds?: string[] }): Deviation {
   return { id: `EV-${partial.family}-${partial.tagId}-${partial.onsetMs ?? partial.window.startMs}`, observationIds: [], ...partial };
 }
@@ -248,7 +254,7 @@ export function extractEvidence(input: DiagnosisInput): { deviations: Deviation[
     const tag = "PUMP-01.coolant_flow";
     const cell = cells["CELL-A"];
     const band = bandFor(baselines, cell, tag);
-    const samples = reader.range(tag, from);
+    const samples = reader.range(tag, from).filter((s) => isComparableContext(s, cell));
     const missing = samples.filter((s) => s.quality === "MISSING" || s.value === null);
     if (missing.length >= 3) {
       quality.push(
@@ -304,7 +310,7 @@ export function extractEvidence(input: DiagnosisInput): { deviations: Deviation[
     const tag = "SPN-01.bearing_temp";
     const cell = cells["CELL-A"];
     const band = bandFor(baselines, cell, tag);
-    const samples = reader.range(tag, from);
+    const samples = reader.range(tag, from).filter((s) => isComparableContext(s, cell));
     const recent = samples.filter((s) => s.ms >= cutoffMs - 120_000 && typeof s.value === "number");
     if (recent.length >= 60) {
       const values = new Set(recent.map((s) => s.value as number));
@@ -372,7 +378,7 @@ export function extractEvidence(input: DiagnosisInput): { deviations: Deviation[
     }
     const speedTag = `${spn}.actual_speed`;
     const speedBand = base.bands.find((b) => b.tagId === speedTag);
-    const speedSamples = reader.range(speedTag, from).filter((s) => isPhase(s, "CUTTING") && typeof s.value === "number");
+    const speedSamples = reader.range(speedTag, from).filter((s) => isComparableContext(s, cell) && isPhase(s, "CUTTING") && typeof s.value === "number");
     const speedInBand = (s: Sample) => !speedBand || ((s.value as number) >= speedBand.min && (s.value as number) <= speedBand.max);
     // Context deviation: commanded speed differs from the recipe.
     if (cell && cell.commandedSpeedRpm !== base.commandedSpeedRpm) {
@@ -403,7 +409,7 @@ export function extractEvidence(input: DiagnosisInput): { deviations: Deviation[
       const tag = `${spn}.${tagName}`;
       const band = base.bands.find((b) => b.tagId === tag);
       if (!band) continue;
-      const samples = reader.range(tag, from).filter((s) => isPhase(s, "CUTTING") && typeof s.value === "number");
+      const samples = reader.range(tag, from).filter((s) => isComparableContext(s, cell) && isPhase(s, "CUTTING") && typeof s.value === "number");
       // Only samples where speed is in the approved band count as matched-condition evidence.
       const matched = samples.filter((s) => {
         const sp = speedSamples.find((x) => x.ms === s.ms);
@@ -702,6 +708,13 @@ export function diagnose(input: DiagnosisInput): DiagnosisOutput {
       if (sep < u) {
         orderingUnresolved = true;
         orderingNote = `${a.title} and ${b.title} are ${Math.round(sep / 1000)} s apart, but their clocks carry ±${Math.round((a.onsetUncertaintyMs ?? 0) / 1000)} s and ±${Math.round((b.onsetUncertaintyMs ?? 0) / 1000)} s uncertainty. The order cannot be established from these timestamps.`;
+      }
+    }
+    if (!orderingUnresolved && sharedCauseAssetId === "AIR-HDR-01") {
+      const uncertainRobotEvents = input.reader.range("ROB-01.robot_clear", input.cutoffMs - 10 * 60_000, input.cutoffMs).filter((s) => s.uncertaintyMs >= 5000);
+      if (uncertainRobotEvents.length) {
+        orderingUnresolved = true;
+        orderingNote = "Robot sequence timestamps carry ±5 s uncertainty. The dependency evidence supports a shared pneumatic cause, but ordering claims involving the robot clock are not established.";
       }
     }
     const top = candidates[0];

@@ -3,7 +3,7 @@ import { ASSET_BY_ID, ASSETS, TAG_BY_ID, tagId } from "@/lib/domain/plant";
 import { PlantEngine, STEP_MS, type RecordedIntervention } from "./engine";
 import { ObservationStore, readerAt, type Sample, type SeriesPoint } from "./observation";
 import { DEMO_START_MS, type InterventionId } from "./scenarios";
-import { diagnose, type CellContext, type DiagnosisGroup } from "@/lib/diagnosis/engine";
+import { diagnose, type CellContext } from "@/lib/diagnosis/engine";
 import { evaluateRun } from "@/lib/recovery/interpreter";
 import { stableId } from "@/lib/util";
 

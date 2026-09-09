@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PlantLens
 
-## Getting Started
+PlantLens is a local-first factory maintenance and recovery workbench built by VoltMind. The bundled experience uses a fictional automotive-component factory near Chennai and explicitly labels all generated observations as **SIMULATION**—it is not connected to a live factory.
 
-First, run the development server:
+## What works
+
+- Seeded Web Worker simulation across 18 assets and 12 scenarios
+- CSV, JSON, TXT, PLC-text, and engineer-note ingestion with provenance and quality reports
+- Inspectable local knowledge compilation, engineer review, and immutable publication
+- Evidence-backed incident grouping and competing diagnostic explanations
+- Work orders, intervention approval, inventory ledger, costs, and scoped historical records
+- Compiled recovery plans evaluated against observations
+- Browser-local IndexedDB persistence, evidence-bundle export, telemetry CSV, and print reports
+- Optional server-side connected-AI adapter; the complete demo requires no API key
+
+## Run locally
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`. Production verification:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run typecheck
+npm run lint
+npm run test:unit
+npm run build
+npm run test:e2e
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Data and safety boundaries
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Imported files remain in the browser unless the user explicitly exports them. PlantLens does not write to PLCs, bypass interlocks, execute uploaded control code, or claim field validation. Recovery outcomes apply only to the recorded test scope and require a separate review before verified closure.

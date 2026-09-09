@@ -32,7 +32,6 @@ import type { SeriesPoint, Sample } from "@/lib/simulation/observation";
 import type { EvaluationConfig, EvaluationReport } from "@/lib/simulation/evaluation";
 import { SEED_BASELINES, SEED_KNOWLEDGE_VERSION } from "@/lib/fixtures/knowledge";
 import { SEED_COST_ASSUMPTIONS, SEED_INCIDENTS, SEED_INVENTORY, SEED_RUNS, SEED_WORK_ORDERS } from "@/lib/fixtures/history";
-import { ENGINEER_NOTES, PLC_SEQUENCE, docText } from "@/lib/fixtures/documents";
 import type { SamplePack } from "@/lib/fixtures/pack";
 import { parseFile, normalizeTrace, proposeMapping, type ColumnMapping, type NormalizeOptions, type ParsedFile, type QualityReport } from "@/lib/sources/parsers";
 import { runLocalPipeline, type StageReport } from "@/lib/knowledge/pipeline";

@@ -25,7 +25,6 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   useEffect(() => {
     if (open) {
       restoreRef.current = document.activeElement as HTMLElement;
-      setQ("");
     } else restoreRef.current?.focus?.();
   }, [open]);
 
@@ -35,7 +34,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   );
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DialogPrimitive.Root open={open} onOpenChange={(next) => { if (next) setQ(""); onOpenChange(next); }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/40" />
         <DialogPrimitive.Content className="fixed left-1/2 top-[12vh] z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-lg border border-border bg-surface shadow-xl focus:outline-none">
