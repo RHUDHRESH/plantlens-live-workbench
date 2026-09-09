@@ -11,12 +11,22 @@ export interface PublishResult {
   changedIds: string[];
 }
 
-export function reviewProposal(p: KnowledgeProposal, review: ReviewRecord, edits?: { edge?: Partial<DependencyEdge>; resolution?: { chosen: number; reason: string } }): KnowledgeProposal {
+export interface ProposalEdits {
+  edge?: Partial<DependencyEdge>;
+  mapping?: Partial<TagMapping>;
+  resolution?: { chosen: number; reason: string };
+}
+
+export function reviewProposal(p: KnowledgeProposal, review: ReviewRecord, edits?: ProposalEdits): KnowledgeProposal {
   const next: KnowledgeProposal = structuredClone(p);
   next.review = review;
   if (edits?.edge && (next.payload.kind === "DEPENDENCY_EDGE" || next.payload.kind === "UNCITED_DRAFT")) {
     next.payload.edge = { ...next.payload.edge, ...edits.edge };
     next.changeSummary.push(`Edited: ${Object.keys(edits.edge).join(", ")}`);
+  }
+  if (edits?.mapping && next.payload.kind === "ALIAS_MERGE") {
+    next.payload.mapping = { ...next.payload.mapping, ...edits.mapping, ambiguous: false };
+    next.changeSummary.push(`Edited mapping: ${Object.entries(edits.mapping).map(([k, v]) => `${k}=${String(v)}`).join(", ")}`);
   }
   if (edits?.resolution && next.payload.kind === "SOURCE_CONFLICT") {
     next.payload.resolution = edits.resolution;

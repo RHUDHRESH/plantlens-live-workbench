@@ -36,7 +36,7 @@ import { ENGINEER_NOTES, PLC_SEQUENCE, docText } from "@/lib/fixtures/documents"
 import type { SamplePack } from "@/lib/fixtures/pack";
 import { parseFile, normalizeTrace, proposeMapping, type ColumnMapping, type NormalizeOptions, type ParsedFile, type QualityReport } from "@/lib/sources/parsers";
 import { runLocalPipeline, type StageReport } from "@/lib/knowledge/pipeline";
-import { publishVersion, reviewProposal } from "@/lib/knowledge/versions";
+import { publishVersion, reviewProposal, type ProposalEdits } from "@/lib/knowledge/versions";
 import { approvePlan, compilePlan, invalidateForKnowledgeChange, revisePlan, templatesFor } from "@/lib/recovery/compiler";
 import { applyInventory, audit as makeAudit, checkVerifiedClosure, closeWorkOrder, transitionWorkOrder, WorkflowError } from "@/lib/workflow";
 import { acquireWriterLock, loadWorkspace, readPref, saveWorkspace, storageStatus, writePref, LOCAL_PREF_KEYS, type WriterLock } from "@/lib/storage/db";
@@ -143,7 +143,7 @@ export interface AppState {
   loadSamplePack: () => Promise<void>;
   downloadSamplePack: () => Promise<void>;
   runPipeline: () => void;
-  reviewProposalAction: (id: string, decision: ReviewRecord["decision"], reason: string, edits?: { edge?: Partial<import("@/lib/domain/types").DependencyEdge>; resolution?: { chosen: number; reason: string } }) => void;
+  reviewProposalAction: (id: string, decision: ReviewRecord["decision"], reason: string, edits?: ProposalEdits) => void;
   publishKnowledge: (reason: string) => Promise<void>;
   activeKnowledge: () => KnowledgeVersion;
   addHumanEdgeDraft: (edge: import("@/lib/domain/types").DependencyEdge, rationale: string) => void;
