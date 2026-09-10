@@ -61,7 +61,7 @@ class ResearchTools {
     if (typeof input.query !== 'string' || !input.query.trim() || input.query.length > 200 || Object.keys(input).some(k => !['query', 'approved'].includes(k))) throw new TypeError('query must contain 1-200 characters and approved must be true');
     if (!this.apiKey) return blocked('PROVIDER_NOT_CONFIGURED', 'Open Web research → Set up search and save a Brave Search API key, then approve the query.');
     const endpoint = new URL('https://api.search.brave.com/res/v1/web/search'); endpoint.searchParams.set('q', input.query.trim()); endpoint.searchParams.set('count', '5');
-    const response = await this.fetchImpl(endpoint, { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/json', 'X-Subscription-Token': this.apiKey } }).catch(() => null);
+    const response = await this.fetchImpl(endpoint, { redirect: 'error', signal: AbortSignal.timeout(8000), headers: { Accept: 'application/json', 'X-Subscription-Token': this.apiKey } }).catch(() => null);
     if (!response?.ok) return blocked('PROVIDER_UNAVAILABLE', 'Check the Brave Search configuration and network, then retry.');
     if (Number(response.headers?.get?.('content-length') || 0) > 256 * 1024) return blocked('PROVIDER_UNAVAILABLE', 'The search provider returned an oversized response.');
     let raw;
@@ -76,6 +76,7 @@ class ResearchTools {
     } else { raw = await response.text(); }
     if (Buffer.byteLength(raw) > 256 * 1024) return blocked('PROVIDER_UNAVAILABLE', 'The search provider returned an oversized response.');
     let payload; try { payload = JSON.parse(raw); } catch { return blocked('PROVIDER_UNAVAILABLE', 'The search provider returned an invalid response.'); }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return blocked('PROVIDER_UNAVAILABLE', 'The search provider returned an invalid response.');
     const results = (Array.isArray(payload.web?.results) ? payload.web.results : []).filter(row => row && typeof row === 'object').slice(0, 5).map(row => ({ resultId: randomUUID(), title: String(row.title || '').slice(0, 200), url: String(row.url || '').slice(0, 2048), snippet: String(row.description || '').replace(/<[^>]+>/g, '').slice(0, 600) })).filter(r => r.title && r.url.startsWith('https://'));
     results.forEach(result => this.results.set(result.resultId, result));
     while (this.results.size > 50) this.results.delete(this.results.keys().next().value);

@@ -42,7 +42,9 @@ function validateProposal(proposal, documentRevision, assetIds) {
       if (change.assetId !== undefined && change.assetId !== '') fail('add_asset must not target an existing assetId');
       let added; try { added = JSON.parse(change.value); } catch { fail('add_asset value must be JSON'); }
       exact(added, ['id', 'kind', 'name'], 'add_asset value'); id(added.id, 'add_asset value.id');
-      if (assetIds.has(added.id) || !['sensor', 'motor', 'drive', 'controller'].includes(added.kind)) fail('add_asset value has a duplicate ID or unsupported kind');
+      if (!['sensor', 'motor', 'drive', 'controller'].includes(added.kind)) fail('add_asset value has an unsupported kind');
+      if (change.status === 'PENDING' && assetIds.has(added.id)) fail('add_asset value has a duplicate ID');
+      if (change.status === 'APPROVED' && !assetIds.has(added.id)) fail('approved add_asset is missing from the workspace');
       string(added.name, 'add_asset value.name', 120);
     } else fail('proposal change operation is not allowed');
   }

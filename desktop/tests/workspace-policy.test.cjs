@@ -20,6 +20,15 @@ function valid() {
 }
 
 test('accepts a strict, referentially valid CAD workspace', () => assert.equal(validateWorkspace(valid()).id, 'CAD-1'));
+test('approved add-asset history remains saveable while pending duplicate IDs are rejected', () => {
+  const doc = valid();
+  doc.assets.push({ id: 'NEW-1', name: 'Motor', kind: 'motor', description: 'Proposed motor', terminalIds: [] });
+  doc.proposals[0].status = 'COMPLETED';
+  doc.proposals[0].changes = [{ id: 'ADD-1', kind: 'add_asset', value: JSON.stringify({ id: 'NEW-1', name: 'Motor', kind: 'motor' }), summary: 'Add motor', status: 'APPROVED' }];
+  assert.equal(validateWorkspace(doc).assets.length, 3);
+  doc.proposals[0].changes[0].status = 'PENDING';
+  assert.throws(() => validateWorkspace(doc), /duplicate/);
+});
 
 test('rejects unknown fields, malformed and duplicate IDs, and unbounded data', () => {
   assert.throws(() => validateWorkspace({ ...valid(), shell: 'calc' }), /unknown field/);

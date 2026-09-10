@@ -6,6 +6,20 @@ const path = require('node:path');
 const { DesktopStore } = require('../store.cjs');
 const { EvidenceTools, MAX_BYTES } = require('../evidence-tools.cjs');
 const { ResearchTools, isPrivate } = require('../research-tools.cjs');
+test('malformed provider root is blocked, not an uncaught exception', async () => {
+  const research = new ResearchTools({ apiKey: 'synthetic-test-key', fetchImpl: async () => new Response('null') });
+  assert.equal((await research.search({ query: 'synthetic manual', approved: true })).status, 'BLOCKED');
+});
+test('provider credentials cannot follow redirects and query does not carry workspace data', async () => {
+  let called = false;
+  const research = new ResearchTools({ apiKey: 'synthetic-test-key', fetchImpl: async (url, options) => {
+    called = true; assert.equal(options.redirect, 'error');
+    assert.deepEqual([...url.searchParams.keys()].sort(), ['count', 'q']);
+    return new Response(JSON.stringify({ web: { results: [] } }));
+  } });
+  assert.equal((await research.search({ query: 'synthetic manual', approved: true })).status, 'OK');
+  assert.equal(called, true);
+});
 
 function setup(t) { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'plantlens-evidence-')); const store = new DesktopStore(path.join(dir, 'db.sqlite')); t.after(() => { store.close(); fs.rmSync(dir, { recursive: true, force: true }); }); return new EvidenceTools(store); }
 test('imports, chunks, searches and reads local evidence', t => { const tools = setup(t); const added = tools.import({ name: 'drive.md', text: 'Safety limit is 42 rpm.\n'.repeat(200) }); assert.ok(added.chunkCount > 1); const hits = tools.search({ query: '" OR * limit', limit: 5 }); assert.ok(hits.length); assert.equal(tools.read(hits[0].excerptId).evidenceId, added.id); });
