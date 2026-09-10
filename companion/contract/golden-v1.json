@@ -1,0 +1,19 @@
+{
+  "magic": "PLANTLENS/1",
+  "protocol": { "major": 1, "minor": 0, "encoding": "json" },
+  "deviceUuid": "8d5f0f90-1d4c-4ccb-a57f-24bfef57ee01",
+  "boardModel": "Arduino UNO Q",
+  "firmwareHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "bootId": "boot-golden-0001",
+  "schemaHash": "02edea6bec9593e25e8b0b28fad096402990fa3659341a52ebe06784698194cc",
+  "capabilities": ["DESCRIBE", "STREAM", "HEALTH"],
+  "writesSupported": false,
+  "clock": { "kind": "MONOTONIC_MS", "uncertaintyMs": 5 },
+  "channelCount": 1,
+  "maximumRateHz": 20,
+  "channels": [{
+    "id": "sensor_1_raw", "label": "Sensor 1 raw", "valueType": "uint16",
+    "unit": "count", "minimum": 0, "maximum": 4095, "sampleRateHz": 20,
+    "access": "READ_ONLY", "mappingState": "UNMAPPED"
+  }]
+}

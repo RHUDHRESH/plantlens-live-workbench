@@ -2,6 +2,59 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DemoTransport } from "../src/transports/demo.mjs";
 import { NdjsonDecoder, stableHash, validateDescriptor, validateSample } from "../src/protocol.mjs";
+import { readFile } from "node:fs/promises";
+import { openUnoQHttp, validateAppLabAddress } from "../src/transports/http.mjs";
+
+test("accepts the shared firmware golden descriptor", async () => {
+  const value = JSON.parse(await readFile(new URL("../contract/golden-v1.json", import.meta.url), "utf8"));
+  assert.equal(validateDescriptor(value).ok, true);
+});
+
+test("UNO Q HTTP adapter restricts addresses and verifies selected identity", async () => {
+  assert.throws(() => validateAppLabAddress("http://example.com"), /loopback/);
+  assert.throws(() => validateAppLabAddress("https://8.8.8.8", "secret"), /private literal/);
+  assert.throws(() => validateAppLabAddress("https://uno-q.local", "secret"), /private literal/);
+  assert.throws(() => validateAppLabAddress("https://192.168.1.20"), /credential/);
+  const descriptor = JSON.parse(await readFile(new URL("../contract/golden-v1.json", import.meta.url), "utf8"));
+  const fetchImpl = async (url) => new Response(JSON.stringify(String(url).endsWith("descriptor") ? descriptor : { descriptor, samples: [] }), { status: 200 });
+  await assert.rejects(openUnoQHttp({ address: "http://127.0.0.1:7000", expectedDeviceUuid: "00000000-0000-4000-8000-000000000000", fetchImpl }), /expected UUID/);
+  const transport = await openUnoQHttp({ address: "http://127.0.0.1:7000", expectedDeviceUuid: descriptor.deviceUuid, fetchImpl });
+  assert.equal((await transport.verify()).deviceUuid, descriptor.deviceUuid);
+  await transport.close();
+});
+
+test("UNO Q HTTP adapter bounds bodies and makes identity changes require reconnect", async () => {
+  const descriptor = JSON.parse(await readFile(new URL("../contract/golden-v1.json", import.meta.url), "utf8"));
+  await assert.rejects(openUnoQHttp({ address: "http://localhost:7000", expectedDeviceUuid: descriptor.deviceUuid, maximumResponseBytes: 8, fetchImpl: async () => new Response(JSON.stringify(descriptor)) }), /exceeds/);
+  let requests = 0;
+  const fetchImpl = async url => {
+    requests++;
+    const body = String(url).endsWith("descriptor") ? descriptor : { descriptor: { ...descriptor, bootId: "different-boot" }, samples: [] };
+    return new Response(JSON.stringify(body));
+  };
+  const transport = await openUnoQHttp({ address: "http://localhost:7000", expectedDeviceUuid: descriptor.deviceUuid, pollMs: 100, fetchImpl });
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.equal(transport.diagnostics().requiresReconnect, true);
+  assert.match(transport.diagnostics().error, /reconnect/);
+  const stoppedAt = requests;
+  await new Promise(resolve => setTimeout(resolve, 130));
+  assert.equal(requests, stoppedAt);
+  await transport.close();
+});
+
+test("closing UNO Q HTTP transport aborts an active bounded poll", async () => {
+  const descriptor = JSON.parse(await readFile(new URL("../contract/golden-v1.json", import.meta.url), "utf8"));
+  let call = 0, aborted = false;
+  const fetchImpl = async (_url, options) => {
+    if (call++ === 0) return new Response(JSON.stringify(descriptor));
+    return new Promise((_resolve, reject) => options.signal.addEventListener("abort", () => { aborted = true; reject(options.signal.reason); }, { once: true }));
+  };
+  const transport = await openUnoQHttp({ address: "http://localhost:7000", expectedDeviceUuid: descriptor.deviceUuid, fetchImpl });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  await transport.close();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(aborted, true);
+});
 
 test("hashes descriptors using Python's sorted-key compact JSON representation", () => {
   const channels = [{

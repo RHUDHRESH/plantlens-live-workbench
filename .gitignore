@@ -41,3 +41,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Desktop build products and downloaded model artifacts
+desktop/node_modules/
+desktop/dist/
+desktop/dist-resources/
+desktop/resources/
+.cache/
+**/__pycache__/

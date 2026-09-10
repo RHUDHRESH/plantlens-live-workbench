@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "qwen3-1.7b-q4_k_m",
+  "name": "Qwen3 1.7B · Q4_K_M",
+  "license": "Apache-2.0",
+  "source": {
+    "repository": "Qwen/Qwen3-1.7B-GGUF",
+    "revision": "90862c4b9d2787eaed51d12237eafdfe7c5f6077",
+    "url": "https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/90862c4b9d2787eaed51d12237eafdfe7c5f6077/Qwen3-1.7B-Q8_0.gguf",
+    "filename": "Qwen3-1.7B-Q8_0.gguf",
+    "bytes": 1834426016,
+    "sha256": "061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a"
+  },
+  "conversion": {
+    "type": "Q4_K_M",
+    "filename": "Qwen3-1.7B-Q4_K_M.gguf",
+    "provenance": "Locally requantized from the pinned official Q8 artifact; not an official Qwen Q4 release."
+  },
+  "runtime": {
+    "version": "b10809",
+    "license": "MIT",
+    "url": "https://github.com/ggml-org/llama.cpp/releases/download/b10809/llama-b10809-bin-win-cpu-x64.zip",
+    "bytes": 18407457,
+    "sha256": "9df3158ed228a641a4b127942d7f459f24c9e13f04682659d05c00c80099b6b5"
+  },
+  "contextTokens": 4096,
+  "maxOutputTokens": 512,
+  "minimumFreeDiskBytes": 4294967296,
+  "releaseSignature": null
+}

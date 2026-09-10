@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Vercel traces its own functions; only the desktop bundle needs standalone output.
+  output: process.env.VERCEL ? undefined : "standalone",
 };
 
 export default nextConfig;

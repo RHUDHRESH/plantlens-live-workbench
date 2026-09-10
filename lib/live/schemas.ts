@@ -3,6 +3,20 @@ import { z } from "zod";
 const safeId = z.string().min(1).max(160).regex(/^[A-Za-z0-9_.:/+\-]+$/);
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/i, "Expected a SHA-256 hex digest");
 
+const WireChannelSchema = z.object({
+  id: z.string().min(1).max(80), label: z.string().min(1).max(200), valueType: z.enum(["float32", "float64", "boolean", "bool", "string", "text", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64"]),
+  unit: z.string().min(1).max(40), minimum: z.number().finite(), maximum: z.number().finite(), sampleRateHz: z.number().positive().max(20_000), access: z.literal("READ_ONLY"), mappingState: z.enum(["UNMAPPED", "MAPPED"]),
+}).strict();
+
+/** PlantLens/1 wire descriptor used identically by firmware and companion. */
+export const WireDeviceDescriptorSchema = z.object({
+  magic: z.literal("PLANTLENS/1"), protocol: z.object({ major: z.literal(1), minor: z.number().int().nonnegative(), encoding: z.literal("json") }).strict(),
+  deviceUuid: z.string().uuid(), boardModel: z.string().min(1).max(120), firmwareHash: sha256, bootId: safeId, schemaHash: sha256,
+  capabilities: z.array(z.enum(["DESCRIBE", "STREAM", "HEALTH"])).max(16), writesSupported: z.literal(false),
+  clock: z.object({ kind: z.literal("MONOTONIC_MS"), uncertaintyMs: z.number().int().nonnegative() }).strict(),
+  channelCount: z.number().int().nonnegative().max(128), maximumRateHz: z.number().positive().max(20_000), channels: z.array(WireChannelSchema).max(128),
+}).strict().refine((value) => value.channelCount === value.channels.length, "channelCount does not match channels");
+
 export const TransportKindSchema = z.enum(["COM", "USB_SERVICE", "NETWORK", "DEMO"]);
 export const TransportOwnershipSchema = z.enum(["AVAILABLE", "BUSY", "UNAUTHORIZED"]);
 
@@ -17,8 +31,8 @@ export const DeviceCandidateSchema = z.object({
   recoveryMode: z.boolean().default(false),
 }).strict();
 
-export const ChannelDataTypeSchema = z.enum(["FLOAT32", "FLOAT64", "INT16", "UINT16", "INT32", "UINT32", "BOOLEAN", "STRING"]);
-export const ChannelSourceKindSchema = z.enum(["RAW_ADC", "ANALOG_4_20_MA", "ANALOG_0_10_V", "PULSE", "DIGITAL", "I2C", "SPI", "CAN", "MODBUS_RTU"]);
+export const ChannelDataTypeSchema = z.enum(["FLOAT32", "FLOAT64", "INT8", "UINT8", "INT16", "UINT16", "INT32", "UINT32", "INT64", "UINT64", "BOOLEAN", "STRING"]);
+export const ChannelSourceKindSchema = z.enum(["UNSPECIFIED", "RAW_ADC", "ANALOG_4_20_MA", "ANALOG_0_10_V", "PULSE", "DIGITAL", "I2C", "SPI", "CAN", "MODBUS_RTU"]);
 
 export const ChannelDescriptorSchema = z.object({
   id: safeId,

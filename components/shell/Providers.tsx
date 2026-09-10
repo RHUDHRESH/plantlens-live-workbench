@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { useApp } from "@/store/app";
 import { AppShell } from "./AppShell";
 import { LiveWorkspaceProvider } from "@/components/live/LiveWorkspace";
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const bootstrap = useApp((s) => s.bootstrap);
   const setHidden = useApp((s) => s.setHidden);
   const theme = useApp((s) => s.theme);
@@ -55,5 +57,5 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  return <LiveWorkspaceProvider><AppShell>{children}</AppShell></LiveWorkspaceProvider>;
+  return <LiveWorkspaceProvider>{pathname === "/workbench" ? <div className="flex h-dvh flex-col overflow-hidden">{children}</div> : <AppShell>{children}</AppShell>}</LiveWorkspaceProvider>;
 }

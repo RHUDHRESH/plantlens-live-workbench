@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, BookOpen, FlaskConical, Gauge, Grid3x3, Layers, Wrench } from "lucide-react";
+import { Activity, BookOpen, CircuitBoard, FlaskConical, Gauge, Grid3x3, Layers, Wrench } from "lucide-react";
 import { cn } from "@/lib/util";
 import { useApp } from "@/store/app";
 import { TopBar } from "./TopBar";
@@ -13,6 +13,7 @@ import { Toasts } from "./Toasts";
 import { GuidedStrip } from "./GuidedStrip";
 
 const NAV = [
+  { href: "/workbench", label: "Workbench", icon: CircuitBoard, match: ["/workbench"] },
   { href: "/plant", label: "Plant", icon: Layers, match: ["/plant", "/"] },
   { href: "/knowledge/sources", label: "Knowledge", icon: BookOpen, match: ["/knowledge"] },
   { href: "/incidents", label: "Incidents", icon: Activity, match: ["/incidents"] },

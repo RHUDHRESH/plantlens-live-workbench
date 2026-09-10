@@ -92,7 +92,7 @@ interface LiveWorkspaceValue {
   companionCandidates: Array<{ path: string; manufacturer: string; serialNumber: string | null; vendorId: string | null; productId: string | null; recoveryMode: boolean }>;
   discover: () => Promise<void>;
   discoverCompanion: (url: string, token: string) => Promise<void>;
-  connectCompanion: (url: string, token: string, path: string) => Promise<void>;
+  connectCompanion: (url: string, token: string, path: string, unoQ?: { address: string; expectedDeviceUuid: string; credential: string }) => Promise<void>;
   connectDemo: () => Promise<void>;
   disconnect: () => Promise<void>;
   runAgents: (description: string) => Promise<void>;
@@ -197,14 +197,17 @@ export function LiveWorkspaceProvider({ children }: { children: React.ReactNode 
     appendAudit("COMPANION_DISCOVERY", "windows-loopback", `${payload.devices?.length ?? 0} COM candidates enumerated without probing.`);
   }, [appendAudit, companionFetch]);
 
-  const connectCompanion = useCallback(async (url: string, token: string, path: string) => {
-    if (!/^COM\d+$/i.test(path)) throw new Error("Select one explicit COM port.");
+  const connectCompanion = useCallback(async (url: string, token: string, path: string, unoQ?: { address: string; expectedDeviceUuid: string; credential: string }) => {
+    if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(url) || !token.trim()) throw new Error("A paired loopback companion is required.");
+    if (!unoQ && !/^COM\d+$/i.test(path)) throw new Error("Select one explicit COM port.");
     const candidate = companionCandidates.find((item) => item.path.toLowerCase() === path.toLowerCase());
-    if (!candidate || candidate.recoveryMode) throw new Error("The selected port is unavailable or is a recovery/EDL device.");
+    if (!unoQ && (!candidate || candidate.recoveryMode)) throw new Error("The selected port is unavailable or is a recovery/EDL device.");
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
     setConnection("HANDSHAKING");
-    const response = await companionFetch(url, token, "/v1/connect/serial", { method: "POST", body: JSON.stringify({ path, actor: role }) });
+    let response: Response;
+    try { response = await companionFetch(url, token, unoQ ? "/v1/connect/uno-q" : "/v1/connect/serial", { method: "POST", body: JSON.stringify(unoQ ? { ...unoQ, actor: role } : { path, actor: role }) }); }
+    catch (error) { setConnection("ERROR"); setConnectionDetail(error instanceof Error ? error.message : "Handshake failed."); throw error; }
     const payload = await response.json() as { descriptor: {
       deviceUuid: string; boardModel: string; firmwareHash: string; schemaHash: string; protocol: { major: number; minor: number };
       capabilities: string[]; clock: { uncertaintyMs?: number }; channelCount: number; maximumRateHz: number;
@@ -221,18 +224,27 @@ export function LiveWorkspaceProvider({ children }: { children: React.ReactNode 
       clock: { source: "DEVICE_MONOTONIC", resolutionUs: 1_000, uncertaintyUs: (descriptor.clock.uncertaintyMs ?? 5) * 1_000 },
       channelCount: descriptor.channelCount,
       maximumRateHz: descriptor.maximumRateHz,
-      channels: descriptor.channels.map((channel) => ({ id: channel.id, label: channel.label, dataType: channel.valueType.toLowerCase().includes("uint16") ? "UINT16" : "FLOAT64", sourceKind: "RAW_ADC", rawUnit: channel.unit, samplingRateHz: channel.sampleRateHz, calibrationRevision: 0, access: channel.access, mappingStatus: channel.mappingState })),
+      channels: descriptor.channels.map((channel) => ({ id: channel.id, label: channel.label, dataType: channel.valueType === "bool" ? "BOOLEAN" : channel.valueType === "text" ? "STRING" : channel.valueType.toUpperCase(), sourceKind: "UNSPECIFIED", rawUnit: channel.unit, samplingRateHz: channel.sampleRateHz, calibrationRevision: 0, access: channel.access, mappingStatus: "UNMAPPED" })),
     });
     companionRef.current = { url, token };
     setProfile(verified);
     setMappings(verified.channels.map((channel) => ({ channelId: channel.id, assetId: "", signal: "", canonicalUnit: channel.rawUnit, scale: 1, offset: 0, state: "UNMAPPED" })));
     setConnection("STREAMING");
-    setConnectionDetail(`Verified ${verified.boardModel} on ${path}; UUID and schema pinned; writesSupported=false.`);
-    appendAudit("DEVICE_VERIFIED", verified.deviceUuid, `Loopback companion verified explicit port ${path}; schema ${verified.schemaHash}.`);
+    setConnectionDetail(`Verified ${verified.boardModel} on ${unoQ ? "App Lab service" : path}; UUID and schema pinned; writesSupported=false.`);
+    appendAudit("DEVICE_VERIFIED", verified.deviceUuid, `Loopback companion verified ${unoQ ? "selected App Lab service" : `explicit port ${path}`}; schema ${verified.schemaHash}.`);
 
     streamAbortRef.current?.abort();
     const abort = new AbortController();
     streamAbortRef.current = abort;
+    let checkingHealth = false;
+    timerRef.current = setInterval(() => {
+      setLatest(current => Object.fromEntries(Object.entries(current).map(([id, value]) => [id, Date.now() - value.atMs > 1500 ? { ...value, quality: "STALE" as const } : value])));
+      if (checkingHealth || abort.signal.aborted) return;
+      checkingHealth = true;
+      void companionFetch(url, token, "/v1/status", { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(3000)]) }).then(response => response.json()).then(status => {
+        if (!status.connected && !abort.signal.aborted) { setConnection("ERROR"); setConnectionDetail("Device identity changed or the service disconnected. Select and verify the device again."); abort.abort(); }
+      }).catch(() => { if (!abort.signal.aborted) { setConnection("ERROR"); setConnectionDetail("Companion unavailable; readings marked stale."); } }).finally(() => { checkingHealth = false; });
+    }, 1000);
     void companionFetch(url, token, "/v1/stream", { signal: abort.signal }).then(async (streamResponse) => {
       const reader = streamResponse.body?.getReader();
       if (!reader) return;
@@ -240,8 +252,9 @@ export function LiveWorkspaceProvider({ children }: { children: React.ReactNode 
       let buffered = "";
       while (!abort.signal.aborted) {
         const chunk = await reader.read();
-        if (chunk.done) break;
+        if (chunk.done) { if (!abort.signal.aborted) throw new Error("Companion stream ended; readings are stale."); break; }
         buffered += decoder.decode(chunk.value, { stream: true });
+        if (buffered.length > 1_048_576) throw new Error("Companion stream frame exceeds the size limit.");
         const frames = buffered.split("\n\n");
         buffered = frames.pop() ?? "";
         for (const frame of frames) {
@@ -324,8 +337,8 @@ export function LiveWorkspaceProvider({ children }: { children: React.ReactNode 
       }
       const graphResponse = await graphRequest;
       if (!graphResponse.ok) throw new Error("The bounded LangGraph workflow did not complete.");
-      const graphResult = await graphResponse.json() as { completed: string[]; activationBlocked: boolean };
-      if (graphResult.completed.length !== SPECIALISTS.length || !graphResult.activationBlocked) throw new Error("The specialist graph returned an invalid hardware-safety result.");
+      const graphResult = await graphResponse.json() as { completed: string[]; activationBlocked: boolean; outcomes: Array<{ specialist: string; status: "COMPLETED" | "BLOCKED" | "SKIPPED" | "FAILED" }> };
+      if (graphResult.outcomes.length !== SPECIALISTS.length || !graphResult.activationBlocked || !graphResult.outcomes.some(item => item.status === "BLOCKED")) throw new Error("The specialist graph returned an invalid hardware-safety result.");
       const isDemo = profile.deviceUuid === DEMO_DEVICE_UUID;
       const next: LiveProposal = {
       id: `CFG-PROP-${Date.now()}`,

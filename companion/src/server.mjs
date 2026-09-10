@@ -6,12 +6,13 @@ import { homedir } from "node:os";
 import { CompanionStore } from "./store.mjs";
 import { DemoTransport } from "./transports/demo.mjs";
 import { listSerialCandidates, openSelectedReadOnlyPort } from "./transports/serial.mjs";
+import { openUnoQHttp } from "./transports/http.mjs";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.PLANTLENS_COMPANION_PORT ?? 43117);
 const TOKEN = process.env.PLANTLENS_COMPANION_TOKEN ?? randomBytes(24).toString("base64url");
-const allowedOrigins = new Set([`http://${HOST}:${PORT}`, "http://localhost:3000", "http://127.0.0.1:3000"]);
-const dataDir = join(homedir(), ".plantlens");
+const allowedOrigins = new Set([`http://${HOST}:${PORT}`, "http://localhost:3000", "http://127.0.0.1:3000", process.env.PLANTLENS_UI_ORIGIN].filter(Boolean));
+const dataDir = process.env.PLANTLENS_DATA_DIR ?? join(homedir(), ".plantlens");
 mkdirSync(dataDir, { recursive: true });
 const store = new CompanionStore(join(dataDir, "plantlens.db"));
 
@@ -20,6 +21,7 @@ let unsubscribe = null;
 let descriptor = null;
 let latest = null;
 const streams = new Set();
+const diagnostics = { samplesReceived: 0, sseBackpressureDrops: 0, streamClients: 0 };
 
 function corsHeaders(request) {
   const origin = request.headers.origin;
@@ -66,8 +68,9 @@ async function connect(transport, actor) {
   active = transport;
   unsubscribe = active.subscribe((sample) => {
     latest = sample;
+    diagnostics.samplesReceived++;
     const payload = `data: ${JSON.stringify(sample)}\n\n`;
-    streams.forEach((response) => response.write(payload));
+    streams.forEach((response) => { if (!response.write(payload)) diagnostics.sseBackpressureDrops++; });
   });
   store.appendAudit({ actor, kind: "DEVICE_CONNECTED", subjectId: descriptor.deviceUuid, detail: { boardModel: descriptor.boardModel, schemaHash: descriptor.schemaHash, writesSupported: false } });
   return descriptor;
@@ -83,14 +86,19 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/healthz") return jsonFor(request, response, 200, { ok: true, mode: "local", readOnly: true });
     if (!authorized(request)) return jsonFor(request, response, 401, { ok: false, error: "Unauthorized local companion request." });
 
-    if (request.method === "GET" && url.pathname === "/v1/status") return jsonFor(request, response, 200, { ok: true, connected: Boolean(active), descriptor, latest, capabilities: ["DISCOVER", "CONNECT", "STREAM", "AUDIT"], writesSupported: false });
+    if (request.method === "GET" && url.pathname === "/v1/status") {
+      const transportDiagnostics = active?.diagnostics?.() ?? null;
+      const requiresReconnect = Boolean(transportDiagnostics?.requiresReconnect);
+      return jsonFor(request, response, 200, { ok: true, connected: Boolean(active) && !requiresReconnect, connectionState: requiresReconnect ? "ERROR" : active ? "STREAMING" : "DISCONNECTED", descriptor, latest, diagnostics: { ...diagnostics, transport: transportDiagnostics }, capabilities: ["DISCOVER", "CONNECT_UNO_Q_HTTP", "CONNECT_NEGOTIATED_SERIAL", "STREAM", "AUDIT"], writesSupported: false });
+    }
     if (request.method === "GET" && url.pathname === "/v1/devices") return jsonFor(request, response, 200, { ok: true, devices: await listSerialCandidates() });
     if (request.method === "GET" && url.pathname === "/v1/audit") return jsonFor(request, response, 200, { ok: true, events: store.listAudit(Number(url.searchParams.get("limit") ?? 100)) });
     if (request.method === "GET" && url.pathname === "/v1/stream") {
       response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive", ...corsHeaders(request) });
       streams.add(response);
+      diagnostics.streamClients = streams.size;
       if (latest) response.write(`data: ${JSON.stringify(latest)}\n\n`);
-      request.on("close", () => streams.delete(response));
+      request.on("close", () => { streams.delete(response); diagnostics.streamClients = streams.size; });
       return;
     }
 
@@ -101,6 +109,11 @@ const server = createServer(async (request, response) => {
     if (request.method === "POST" && url.pathname === "/v1/connect/serial") {
       const input = await body(request);
       const transport = await openSelectedReadOnlyPort(input.path, { baudRate: input.baudRate ?? 115200 });
+      return jsonFor(request, response, 200, { ok: true, descriptor: await connect(transport, input.actor ?? "local-operator") });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/connect/uno-q") {
+      const input = await body(request);
+      const transport = await openUnoQHttp({ address: input.address, expectedDeviceUuid: input.expectedDeviceUuid, credential: input.credential });
       return jsonFor(request, response, 200, { ok: true, descriptor: await connect(transport, input.actor ?? "local-operator") });
     }
     if (request.method === "POST" && url.pathname === "/v1/disconnect") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Bot, Check, ChevronRight, CircleAlert, Network, Play, ShieldCheck, Unplug } from "lucide-react";
 import { Badge, Button, Callout, Card, CardBody, CardHeader, Field, Input, PageHeader, Progress, Select, StatusBadge, Table, Td, Textarea, Th } from "@/components/ui";
@@ -38,6 +38,13 @@ function Devices() {
   const [companionUrl, setCompanionUrl] = useState("http://127.0.0.1:43117");
   const [pairingToken, setPairingToken] = useState("");
   const [selectedPort, setSelectedPort] = useState("");
+  const [serviceAddress, setServiceAddress] = useState("http://127.0.0.1:8080");
+  const [deviceUuid, setDeviceUuid] = useState("");
+  const [serviceCredential, setServiceCredential] = useState("");
+  useEffect(() => {
+    const api = (window as unknown as { plantlensDesktop?: { companionSession?: () => Promise<{ url: string; token: string }> } }).plantlensDesktop;
+    void api?.companionSession?.().then(session => { setCompanionUrl(session.url); setPairingToken(session.token); }).catch(() => setError("Desktop companion pairing unavailable."));
+  }, []);
   const act = async (fn: () => Promise<void>) => { try { setError(""); await fn(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Device operation failed"); } };
   return <>
     <PageHeader title="Devices" description="Enumerate safely, select explicitly, then prove identity before accepting one sample." badges={<StatusBadge value={live.connection} />} actions={live.connection === "STREAMING" ? <Button variant="outline" onClick={() => act(live.disconnect)}><Unplug size={14} /> Disconnect</Button> : undefined} />
@@ -57,8 +64,12 @@ function Devices() {
         <div className="flex gap-2"><Button variant="outline" onClick={() => act(() => live.discoverCompanion(companionUrl, pairingToken))}>List COM ports</Button><Button disabled={!selectedPort} onClick={() => act(() => live.connectCompanion(companionUrl, pairingToken, selectedPort))}>Connect selected</Button></div>
       </div>
       <p className="mt-2 text-xs text-muted">The token stays in this page&apos;s memory. No serial terminal, baud scan, bootloader touch, DTR/RTS toggle, or arbitrary register endpoint exists.</p>
+      <div className="mt-5 border-t border-border pt-4"><h2 className="text-sm font-semibold">UNO Q App Lab service</h2><p className="mb-3 text-xs text-muted">Separate from COM. Select an explicitly forwarded loopback service or authenticated HTTPS private-IP endpoint. No automatic ADB commands or USB probing.</p>
+        <div className="grid items-end gap-3 md:grid-cols-3"><Field label="Service address"><Input aria-label="UNO Q service address" value={serviceAddress} onChange={event => setServiceAddress(event.target.value)}/></Field><Field label="Expected device UUID"><Input aria-label="Expected UNO Q UUID" value={deviceUuid} onChange={event => setDeviceUuid(event.target.value)} placeholder="Provisioned identity, not a COM number"/></Field><Field label="Device service token"><Input type="password" autoComplete="off" aria-label="UNO Q service token" value={serviceCredential} onChange={event => setServiceCredential(event.target.value)}/></Field></div>
+        <Button className="mt-3" disabled={!pairingToken || !deviceUuid || live.connection === "HANDSHAKING"} onClick={() => act(() => live.connectCompanion(companionUrl, pairingToken, "", { address: serviceAddress, expectedDeviceUuid: deviceUuid, credential: serviceCredential }))}>Verify selected App Lab service</Button>
+      </div>
     </CardBody></Card>
-    {live.profile ? <Card className="mt-3"><CardHeader title="Discovered raw channels" description="Labels below come from the signed demo descriptor; every channel begins UNMAPPED." /><CardBody><Table><thead><tr><Th>Channel</Th><Th>Source</Th><Th>Raw value</Th><Th>Rate</Th><Th>Access</Th><Th>Mapping</Th></tr></thead><tbody>{live.profile.channels.map((channel) => <tr key={channel.id}><Td><p className="font-medium">{channel.label}</p><code className="text-xs text-muted">{channel.id}</code></Td><Td>{channel.sourceKind}</Td><Td className="tnum">{channelDisplay(channel, live.latest[channel.id])}</Td><Td>{channel.samplingRateHz} Hz</Td><Td><Badge tone="green">READ ONLY</Badge></Td><Td><StatusBadge value={live.mappings.find((mapping) => mapping.channelId === channel.id)?.state ?? "UNMAPPED"} /></Td></tr>)}</tbody></Table></CardBody></Card> : null}
+    {live.profile ? <Card className="mt-3"><CardHeader title="Discovered raw channels" description="Labels below come from the negotiated descriptor (labels are untrusted device data); every channel begins UNMAPPED." /><CardBody><Table><thead><tr><Th>Channel</Th><Th>Source</Th><Th>Raw value</Th><Th>Rate</Th><Th>Access</Th><Th>Mapping</Th></tr></thead><tbody>{live.profile.channels.map((channel) => <tr key={channel.id}><Td><p className="font-medium">{channel.label}</p><code className="text-xs text-muted">{channel.id}</code></Td><Td>{channel.sourceKind}</Td><Td className="tnum">{channelDisplay(channel, live.latest[channel.id])}</Td><Td>{channel.samplingRateHz} Hz</Td><Td><Badge tone="green">READ ONLY</Badge></Td><Td><StatusBadge value={live.mappings.find((mapping) => mapping.channelId === channel.id)?.state ?? "UNMAPPED"} /></Td></tr>)}</tbody></Table></CardBody></Card> : null}
   </>;
 }
 

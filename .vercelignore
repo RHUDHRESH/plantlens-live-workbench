@@ -1,0 +1,7 @@
+/desktop/
+companion/node_modules/
+/firmware/
+.cache/
+.claude/
+test-results/
+playwright-report/

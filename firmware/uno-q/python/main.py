@@ -87,6 +87,7 @@ last_sequence = None
 descriptor_seen = False
 descriptor_mismatch_count = 0
 rejected_sample_count = 0
+gap_count = 0
 
 
 def get_descriptor():
@@ -111,6 +112,7 @@ def get_health():
         "descriptorSeen": descriptor_seen,
         "descriptorMismatchCount": descriptor_mismatch_count,
         "rejectedSamples": rejected_sample_count,
+        "sequenceGaps": gap_count,
         "bufferedSamples": len(samples),
     }
 
@@ -134,7 +136,7 @@ def on_descriptor(magic: str, board: str, firmware: str, channel_count: int, rat
 
 
 def on_sample(sequence: int, device_ms: int, sensor_1: int, sensor_2: int, sensor_3: int):
-    global last_sample_at, last_sequence, rejected_sample_count
+    global last_sample_at, last_sequence, rejected_sample_count, gap_count
     try:
         sequence = int(sequence)
         device_ms = int(device_ms)
@@ -153,6 +155,13 @@ def on_sample(sequence: int, device_ms: int, sensor_1: int, sensor_2: int, senso
         rejected_sample_count += 1
         logger.warning("Rejected MCU sample outside the declared ADC range")
         return
+
+    if last_sequence is not None:
+        if sequence <= last_sequence:
+            rejected_sample_count += 1
+            logger.warning("Rejected duplicate or out-of-order MCU sequence")
+            return
+        gap_count += max(0, sequence - last_sequence - 1)
 
     received_ms = int(time.time() * 1000)
     batch = {

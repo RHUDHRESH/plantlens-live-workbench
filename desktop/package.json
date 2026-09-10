@@ -1,0 +1,21 @@
+{
+  "name": "plantlens-desktop",
+  "description": "Local-first engineering CAD, telemetry, and AI workbench for Windows",
+  "author": "PlantLens",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "prepare:resources": "node scripts/prepare-resources.cjs",
+    "fetch:runtime": "node scripts/fetch-runtime.cjs",
+    "dist:win": "npm run prepare:resources && electron-builder --config electron-builder.dev.cjs --win nsis --x64",
+    "dist:win:signed": "npm run prepare:resources && electron-builder --config electron-builder.release.cjs --win nsis --x64",
+    "smoke:packaged": "node scripts/smoke-packaged.cjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "electron": "44.3.0",
+    "electron-builder": "26.15.3"
+  }
+}

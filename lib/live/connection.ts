@@ -60,6 +60,15 @@ function valueMatchesChannel(value: RawSample["value"], dataType: DeviceProfile[
     case "STRING": return typeof value === "string";
     case "FLOAT32":
     case "FLOAT64": return typeof value === "number" && Number.isFinite(value);
+    case "INT8": return typeof value === "number" && Number.isInteger(value) && value >= -128 && value <= 127;
+    case "UINT8": return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 255;
+    case "INT64":
+    case "UINT64": {
+      if (typeof value === "number" && !Number.isSafeInteger(value)) return false;
+      if (typeof value !== "number" && (typeof value !== "string" || !/^-?\d{1,20}$/.test(value))) return false;
+      const integer = BigInt(value);
+      return dataType === "UINT64" ? integer >= BigInt(0) && integer <= BigInt("18446744073709551615") : integer >= BigInt("-9223372036854775808") && integer <= BigInt("9223372036854775807");
+    }
     case "INT16": return typeof value === "number" && Number.isInteger(value) && value >= -32_768 && value <= 32_767;
     case "UINT16": return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 65_535;
     case "INT32": return typeof value === "number" && Number.isInteger(value) && value >= -2_147_483_648 && value <= 2_147_483_647;

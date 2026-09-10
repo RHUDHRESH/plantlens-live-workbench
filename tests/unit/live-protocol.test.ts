@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { DeviceProfileSchema, RawSampleSchema } from "@/lib/live/schemas";
+import { DeviceProfileSchema, RawSampleSchema, WireDeviceDescriptorSchema } from "@/lib/live/schemas";
+import goldenDescriptor from "../../companion/contract/golden-v1.json";
 import { ProtocolValidationError, validateProfile } from "@/lib/live/connection";
 import { BoundedNdjsonParser, FramingError, encodeNdjson, unsupportedCborCodec } from "@/lib/live/framing";
 import { DEMO_PROFILE } from "@/lib/live/demo";
 
 describe("live protocol schemas", () => {
+  it("accepts the shared PlantLens/1 golden firmware descriptor", () => {
+    expect(WireDeviceDescriptorSchema.parse(goldenDescriptor).writesSupported).toBe(false);
+  });
   it("accepts the strict demo profile and every channel is read only", () => {
     const profile = DeviceProfileSchema.parse(DEMO_PROFILE);
     expect(profile.channels).toHaveLength(7);

@@ -39,7 +39,7 @@ export function TopBar({ onOpenSearch }: { onOpenSearch: () => void }) {
   return (
     <header className="no-print sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 md:px-4">
-        <Link href="/plant" className="flex items-baseline gap-1.5">
+        <Link href="/workbench" className="flex items-baseline gap-1.5">
           <span className="text-[15px] font-semibold tracking-tight">PlantLens</span>
           <span className="hidden text-[11px] text-muted sm:inline">by VoltMind</span>
         </Link>
