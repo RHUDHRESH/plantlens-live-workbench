@@ -1,0 +1,7 @@
+name: PlantLens Read-Only Motor Gateway
+icon: 🏭
+description: Read-only, self-describing telemetry gateway for PlantLens. It never exposes control or register-write operations.
+
+bricks:
+  - arduino:web_ui
+

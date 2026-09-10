@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useApp } from "@/store/app";
 import { AppShell } from "./AppShell";
+import { LiveWorkspaceProvider } from "@/components/live/LiveWorkspace";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const bootstrap = useApp((s) => s.bootstrap);
@@ -54,5 +55,5 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  return <AppShell>{children}</AppShell>;
+  return <LiveWorkspaceProvider><AppShell>{children}</AppShell></LiveWorkspaceProvider>;
 }

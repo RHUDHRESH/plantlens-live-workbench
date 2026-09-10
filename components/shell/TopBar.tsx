@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare, Moon, Play, Search, Sun, Monitor, PlayCircle, Presentation } from "lucide-react";
+import { Cable, MessageSquare, Moon, Play, Search, Sun, Monitor, PlayCircle, Presentation } from "lucide-react";
 import { Badge, Button, Kbd, Select, Tip } from "@/components/ui";
 import { IDENTITIES, useApp } from "@/store/app";
 import { formatIst } from "@/lib/util";
@@ -74,6 +74,9 @@ export function TopBar({ onOpenSearch }: { onOpenSearch: () => void }) {
           </Button>
           <Link href="/explain" className="hidden items-center gap-1.5 rounded-md border border-accent/30 bg-accent-soft px-2.5 py-1 text-[13px] font-medium text-accent xl:inline-flex">
             <Presentation size={14} /> Judge view
+          </Link>
+          <Link href="/live" className="hidden items-center gap-1.5 rounded-md border border-green/30 bg-green-soft px-2.5 py-1 text-[13px] font-medium text-green sm:inline-flex">
+            <Cable size={14} /> Live hardware
           </Link>
           <Select aria-label="Simulated identity" value={identity} onChange={(e) => setIdentity(e.target.value as typeof identity)} className="hidden h-7 max-w-[190px] text-[12px] lg:block">
             {IDENTITIES.map((i) => (

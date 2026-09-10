@@ -80,3 +80,19 @@ export function formatUncertainty(ms: number | undefined): string {
   if (!ms) return "±0 s (source claimed exactness)";
   return ms >= 1000 ? `±${(ms / 1000).toFixed(ms % 1000 === 0 ? 0 : 1)} s` : `±${ms} ms`;
 }
+
+/**
+ * Evidence ids embed the sliding window start (EV-<group>-<tagId>-<ms>) and therefore change on
+ * every diagnosis recompute. The stable part identifies the same evidence across recomputes.
+ */
+export function stableEvidenceKey(id: string): string {
+  return id.replace(/-\d+$/, "");
+}
+
+/** Resolve a ?evidence= parameter against the current ledger: exact id first, then the stable key. */
+export function resolveEvidenceId(evidence: Array<{ id: string }>, param: string | null): string | null {
+  if (!param) return null;
+  if (evidence.some((e) => e.id === param)) return param;
+  const key = stableEvidenceKey(param);
+  return evidence.find((e) => stableEvidenceKey(e.id) === key)?.id ?? null;
+}

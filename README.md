@@ -12,6 +12,8 @@ PlantLens is a local-first factory maintenance and recovery workbench built by V
 - Compiled recovery plans evaluated against observations
 - Browser-local IndexedDB persistence, evidence-bundle export, telemetry CSV, and print reports
 - Optional server-side connected-AI adapter; the complete demo requires no API key
+- Judge-ready Live workspace with verified-device simulation, raw-channel discovery, a versioned asset library, mapping review, LangGraph.js specialists, and a digital twin
+- Read-only Windows companion and Arduino UNO Q App Lab firmware scaffold under `companion/` and `firmware/uno-q/`
 
 ## Run locally
 
@@ -29,6 +31,8 @@ npm run test:unit
 npm run build
 npm run test:e2e
 ```
+
+The public deployment demonstrates the complete workflow with a clearly labelled verified simulator. Physical USB/COM access is intentionally available only through the local companion. See `docs/LIVE-HARDWARE.md`.
 
 ## Data and safety boundaries
 

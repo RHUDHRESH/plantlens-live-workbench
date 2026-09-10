@@ -8,7 +8,7 @@ test("loads the simulated plant and retains the shell across primary routes", as
   await page.getByRole("link", { name: "Knowledge", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Knowledge sources" })).toBeVisible();
   await page.getByRole("link", { name: "Incidents", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Incidents" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Incidents", exact: true })).toBeVisible();
 });
 
 test("judge explainer, deep links, and sample pack work", async ({ page }) => {
@@ -18,5 +18,5 @@ test("judge explainer, deep links, and sample pack work", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /PUMP-01/ })).toBeVisible();
   await page.goto("/knowledge/sources");
   await page.getByRole("button", { name: "Load sample factory pack" }).click();
-  await expect(page.getByText("asset_registry.csv")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "asset_registry.csv", exact: true })).toBeVisible({ timeout: 20_000 });
 });

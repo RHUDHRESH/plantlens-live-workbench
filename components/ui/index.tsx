@@ -15,11 +15,11 @@ type ButtonSize = "sm" | "md" | "lg";
 
 const buttonBase = "inline-flex items-center justify-center gap-1.5 rounded-md border font-medium whitespace-nowrap transition-colors disabled:opacity-50 disabled:pointer-events-none select-none";
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: "bg-accent text-white border-accent hover:opacity-90",
+  primary: "bg-accent text-white dark:text-bg border-accent hover:opacity-90",
   secondary: "bg-surface-2 text-text border-border hover:bg-border/60",
   outline: "bg-transparent text-text border-border-strong hover:bg-surface-2",
   ghost: "bg-transparent text-text border-transparent hover:bg-surface-2",
-  danger: "bg-red text-white border-red hover:opacity-90",
+  danger: "bg-red text-white dark:text-bg border-red hover:opacity-90",
 };
 const buttonSizes: Record<ButtonSize, string> = { sm: "h-7 px-2.5 text-[13px]", md: "h-8 px-3 text-sm", lg: "h-10 px-4 text-[15px]" };
 
