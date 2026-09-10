@@ -57,5 +57,5 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  return <LiveWorkspaceProvider>{pathname === "/workbench" ? <div className="flex h-dvh flex-col overflow-hidden">{children}</div> : <AppShell>{children}</AppShell>}</LiveWorkspaceProvider>;
+  return <LiveWorkspaceProvider>{pathname === "/workbench" || pathname === "/analysis" ? <div className="flex h-dvh flex-col overflow-hidden">{children}</div> : <AppShell>{children}</AppShell>}</LiveWorkspaceProvider>;
 }

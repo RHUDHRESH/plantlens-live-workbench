@@ -155,7 +155,8 @@ tbody tr:last-child td {
 
 /* React Flow theme hooks */
 .react-flow__attribution {
-  display: none;
+  background: var(--surface) !important;
+  color: var(--muted) !important;
 }
 .react-flow__minimap {
   background: var(--surface) !important;

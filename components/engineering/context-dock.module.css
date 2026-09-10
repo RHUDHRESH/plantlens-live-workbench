@@ -1,0 +1,147 @@
+.dock {
+  flex-shrink: 0;
+  background: var(--surface);
+  color: var(--text);
+  border-top: 1px solid var(--border);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+}
+.privacy {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+.count {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.body {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) 1.7fr;
+  gap: 24px;
+  padding: 20px 24px;
+  border-top: 1px solid var(--border);
+  max-height: 360px;
+  overflow: auto;
+}
+.intro h2 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  margin-bottom: 8px;
+}
+.intro p {
+  max-width: 390px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.intro small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.8;
+  margin-top: 12px;
+}
+.intro form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.consent {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.consent input {
+  margin-top: 3px;
+}
+.fileList {
+  overflow: auto;
+  min-height: 150px;
+}
+.fileList article {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 8px;
+}
+.fileList article > div {
+  flex: 1;
+  min-width: 0;
+}
+.fileList strong {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.fileList small,
+.fileList code {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.fileList p {
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 8px 0;
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 150px;
+  height: 100%;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 18px;
+  text-align: center;
+}
+.empty strong {
+  color: var(--text);
+  font-weight: 500;
+}
+.empty span {
+  font-size: 12px;
+  max-width: 440px;
+  line-height: 1.5;
+}
+.dragging {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.message {
+  padding: 8px 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 850px) {
+  .privacy {
+    display: none;
+  }
+  .body {
+    grid-template-columns: 1fr;
+    max-height: 45vh;
+    gap: 16px;
+  }
+}

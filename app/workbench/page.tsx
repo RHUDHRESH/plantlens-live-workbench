@@ -1,3 +1,4 @@
 import { CadWorkbench } from "@/components/cad/CadWorkbench";
 import { LocalModelSetup } from "@/components/desktop/LocalModelSetup";
-export default function WorkbenchPage() { return <><LocalModelSetup/><CadWorkbench/></>; }
+import { ContextDock } from "@/components/engineering/ContextDock";
+export default function WorkbenchPage() { return <><LocalModelSetup/><CadWorkbench/><ContextDock/></>; }

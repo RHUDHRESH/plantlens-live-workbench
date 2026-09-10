@@ -81,6 +81,25 @@ class DesktopStore {
       CREATE TRIGGER IF NOT EXISTS manuals_ad AFTER DELETE ON manuals BEGIN
         INSERT INTO manuals_fts(manuals_fts,rowid,title,content) VALUES('delete',old.id,old.title,old.content);
       END;
+      CREATE TABLE IF NOT EXISTS evidence (
+        id TEXT PRIMARY KEY, content_hash TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
+        mime TEXT NOT NULL, content TEXT NOT NULL, bytes INTEGER NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS evidence_chunks (
+        id TEXT PRIMARY KEY, evidence_id TEXT NOT NULL, chunk_index INTEGER NOT NULL,
+        content TEXT NOT NULL, UNIQUE(evidence_id, chunk_index),
+        FOREIGN KEY(evidence_id) REFERENCES evidence(id) ON DELETE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS engineering_state_revisions (
+        revision INTEGER PRIMARY KEY, state_json TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE VIRTUAL TABLE IF NOT EXISTS evidence_fts USING fts5(content, content='evidence_chunks', content_rowid='rowid');
+      CREATE TRIGGER IF NOT EXISTS evidence_chunks_ai AFTER INSERT ON evidence_chunks BEGIN
+        INSERT INTO evidence_fts(rowid,content) VALUES(new.rowid,new.content);
+      END;
+      CREATE TRIGGER IF NOT EXISTS evidence_chunks_ad AFTER DELETE ON evidence_chunks BEGIN
+        INSERT INTO evidence_fts(evidence_fts,rowid,content) VALUES('delete',old.rowid,old.content);
+      END;
     `);
   }
 
@@ -179,6 +198,62 @@ class DesktopStore {
   }
 
   searchManuals(query, limit) { return this.manualSearch(query, limit); }
+
+  evidenceFindByHash(hash) {
+    return this.db.prepare(`SELECT e.id,e.name,e.mime,e.bytes,e.created_at AS createdAt,
+      (SELECT count(*) FROM evidence_chunks c WHERE c.evidence_id=e.id) AS chunkCount
+      FROM evidence e WHERE e.content_hash=?`).get(hash) || null;
+  }
+
+  evidenceAdd({ id, hash, name, mime, content, chunks, createdAt = now() }) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare('INSERT INTO evidence(id,content_hash,name,mime,content,bytes,created_at) VALUES(?,?,?,?,?,?,?)')
+        .run(id, hash, name, mime, content, Buffer.byteLength(content), createdAt);
+      const insert = this.db.prepare('INSERT INTO evidence_chunks(id,evidence_id,chunk_index,content) VALUES(?,?,?,?)');
+      chunks.forEach((chunk, index) => insert.run(`${id}:${index}`, id, index, chunk));
+      this.db.exec('COMMIT');
+      return { id, name, mime, bytes: Buffer.byteLength(content), chunkCount: chunks.length, createdAt };
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
+
+  evidenceList() {
+    return this.db.prepare(`SELECT e.id,e.name,e.mime,e.bytes,e.created_at AS createdAt,
+      count(c.id) AS chunkCount FROM evidence e LEFT JOIN evidence_chunks c ON c.evidence_id=e.id
+      GROUP BY e.id ORDER BY e.created_at DESC LIMIT 500`).all();
+  }
+
+  evidenceRead(id) {
+    const chunk = this.db.prepare(`SELECT c.id,c.evidence_id AS evidenceId,e.name,e.mime,c.content AS text,
+      c.chunk_index AS chunkIndex,e.created_at AS createdAt FROM evidence_chunks c JOIN evidence e ON e.id=c.evidence_id WHERE c.id=?`).get(id);
+    if (chunk) return chunk;
+    return this.db.prepare(`SELECT id,id AS evidenceId,name,mime,content AS text,created_at AS createdAt FROM evidence WHERE id=?`).get(id) || null;
+  }
+
+  evidenceSearch(query, limit = 8) {
+    const terms = typeof query === 'string' ? (query.match(/[\p{L}\p{N}_-]+/gu) || []).slice(0, 12) : [];
+    if (!terms.length) return [];
+    const expression = terms.map(term => `"${term.replaceAll('"', '""')}"`).join(' OR ');
+    return this.db.prepare(`SELECT c.id AS excerptId,c.evidence_id AS evidenceId,e.name,c.chunk_index AS chunkIndex,
+      snippet(evidence_fts,0,'[',']',' … ',32) AS text,bm25(evidence_fts) AS score
+      FROM evidence_fts JOIN evidence_chunks c ON c.rowid=evidence_fts.rowid JOIN evidence e ON e.id=c.evidence_id
+      WHERE evidence_fts MATCH ? ORDER BY rank LIMIT ?`).all(expression, Math.max(1, Math.min(20, limit)));
+  }
+
+  engineeringStateLoad() {
+    const row = this.db.prepare('SELECT state_json FROM engineering_state_revisions ORDER BY revision DESC LIMIT 1').get();
+    return row ? parse(row.state_json) : null;
+  }
+  engineeringStateSave(state, expectedRevision) {
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || state.revision !== expectedRevision + 1) throw new TypeError('Engineering state revision must advance exactly once');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const current = this.db.prepare('SELECT COALESCE(MAX(revision),0) AS revision FROM engineering_state_revisions').get().revision;
+      if (current !== expectedRevision) throw new RevisionConflictError(expectedRevision, current);
+      this.db.prepare('INSERT INTO engineering_state_revisions(revision,state_json,created_at) VALUES(?,?,?)').run(state.revision, json(state), now());
+      this.db.exec('COMMIT'); return state;
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
 
   saveCheckpoint(runId, payload) {
     const normalized = String(payload?.status || 'pending').toLowerCase().replace('awaiting_review', 'pending');

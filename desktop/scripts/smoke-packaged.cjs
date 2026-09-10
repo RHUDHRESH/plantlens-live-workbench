@@ -23,9 +23,20 @@ function portClosed(port) {
     application = await electron.launch({ executablePath, env: { ...process.env, PLANTLENS_DESKTOP_DATA: dataDir, PLANTLENS_DISABLE_AUTO_SETUP: '1' } });
     const page = await application.firstWindow();
     await page.waitForURL('**/workbench', { timeout: 30000 });
-    await page.getByText('PlantLens CAD').waitFor({ timeout: 30000 });
+    await page.getByText('Engineering workspace', { exact: true }).waitFor({ timeout: 30000 });
     const status = await page.evaluate(() => window.plantlensDesktop.modelStatus());
     if (!status?.state) throw new Error('Desktop bridge did not return model status');
+    const evidence = await page.evaluate(async () => {
+      const api = window.plantlensDesktop;
+      const imported = await api.evidenceImport({ name: 'packaged-smoke.txt', text: 'Packaged evidence retrieval checks motor context locally.' });
+      const hits = await api.evidenceSearch({ query: 'Packaged evidence', limit: 3 });
+      const blocked = await api.webResearch({ query: 'motor manual', approved: false });
+      const prior = await api.engineeringStateLoad();
+      const state = prior || { schemaVersion: 1, revision: 0, bindings: [], proposals: [] };
+      const saved = await api.engineeringStateSave({ ...state, revision: state.revision + 1 }, state.revision);
+      return { retrieved: hits.some(hit => hit.evidenceId === imported.id), reason: blocked.reason, revision: saved.revision };
+    });
+    if (!evidence.retrieved || evidence.reason !== 'CONSENT_REQUIRED' || evidence.revision < 1) throw new Error('Packaged evidence/consent/state smoke failed');
     const companion = await page.evaluate(async () => {
       const session = await window.plantlensDesktop.companionSession();
       const response = await fetch(`${session.url}/v1/devices`, { headers: { authorization: `Bearer ${session.token}` } });
@@ -34,10 +45,12 @@ function portClosed(port) {
     });
     if (!companion.ok || !Array.isArray(companion.devices)) throw new Error('Packaged companion serial enumeration failed');
     const first = { schemaVersion: 1, id: 'smoke', name: 'Smoke', revision: 1, assets: [], terminals: [], placements: [], connections: [], proposals: [] };
-    await page.evaluate((document) => window.plantlensDesktop.workspaceSave(document, 0), first);
+    const prior = await page.evaluate(() => window.plantlensDesktop.workspaceLoad());
+    const priorRevision = prior?.revision || 0;
+    await page.evaluate(({ document, revision }) => window.plantlensDesktop.workspaceSave(document, revision), { document: first, revision: priorRevision });
     const loaded = await page.evaluate(() => window.plantlensDesktop.workspaceLoad());
-    if (loaded?.id !== 'smoke' || loaded.revision !== 1) throw new Error('Workspace round-trip failed');
-    await page.evaluate((document) => window.plantlensDesktop.workspaceSave({ ...document, name: 'Smoke two' }, 1), loaded);
+    if (loaded?.id !== 'smoke' || loaded.revision !== priorRevision + 1) throw new Error('Workspace round-trip failed');
+    await page.evaluate((document) => window.plantlensDesktop.workspaceSave({ ...document, name: 'Smoke two' }, document.revision), loaded);
   } finally { await application?.close(); }
   await new Promise((resolve) => setTimeout(resolve, 750));
   if (!(await portClosed(3217))) throw new Error('Application service remained after Electron exited');

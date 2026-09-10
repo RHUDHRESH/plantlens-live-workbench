@@ -1,6 +1,6 @@
 module.exports = {
   appId: 'com.plantlens.desktop', productName: 'PlantLens', asar: true, asarUnpack: ['**/*.node'],
-  files: ['main.cjs', 'preload.cjs', 'store.cjs', 'workspace-policy.cjs', 'model-manager.cjs', 'inference.cjs', 'model-manifest.json', 'assets/**/*'],
+  files: ['main.cjs', 'preload.cjs', 'store.cjs', 'workspace-policy.cjs', 'model-manager.cjs', 'inference.cjs', 'evidence-tools.cjs', 'research-tools.cjs', 'engineering-state.cjs', 'model-manifest.json', 'assets/**/*'],
   extraResources: [
     { from: 'dist-resources/app-server', to: 'app-server' },
     { from: 'dist-resources/app-server/node_modules', to: 'app-server/node_modules' },

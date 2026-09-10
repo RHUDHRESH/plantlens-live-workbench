@@ -1,0 +1,8 @@
+.grid { display:grid; gap:16px; grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr); }
+.relationship { display:grid; gap:8px; grid-template-columns:1fr 1fr 1.2fr auto; align-items:center; border-bottom:1px solid var(--border); padding:11px 0; }
+.relationship:last-child { border-bottom:0; }
+.meta { color:var(--muted); font-size:12px; line-height:1.5; }
+.scroll { overflow:auto; max-height:330px; }
+.matrix th,.matrix td { white-space:nowrap; }
+.empty { border:1px dashed var(--border-strong); border-radius:6px; color:var(--muted); padding:22px; text-align:center; font-size:13px; }
+@media(max-width:900px) { .grid { grid-template-columns:1fr; } .relationship { grid-template-columns:1fr 1fr; } }

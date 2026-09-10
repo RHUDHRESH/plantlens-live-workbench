@@ -14,13 +14,20 @@ function array(value, label, max) { if (!Array.isArray(value) || value.length > 
 function unique(items, label) { const seen = new Set(); for (const item of items) { if (seen.has(item.id)) fail(`duplicate ${label} ID ${item.id}`); seen.add(item.id); } return seen; }
 
 function validateProposal(proposal, documentRevision, assetIds) {
-  exact(proposal, ['id', 'request', 'source', 'status', 'baseRevision', 'changes', 'message', 'createdAt'], 'proposal');
+  exact(proposal, ['id', 'request', 'source', 'status', 'baseRevision', 'changes', 'message', 'createdAt', 'citations'], 'proposal');
   id(proposal.id, 'proposal.id'); string(proposal.request, 'proposal.request', 12000);
   if (!['LOCAL_MODEL', 'DETERMINISTIC'].includes(proposal.source)) fail('proposal.source is invalid');
   if (!['READY', 'BLOCKED', 'COMPLETED'].includes(proposal.status)) fail('proposal.status is invalid');
   if (proposal.baseRevision !== undefined && (!Number.isSafeInteger(proposal.baseRevision) || proposal.baseRevision < 0 || proposal.baseRevision > documentRevision)) fail('proposal.baseRevision is invalid');
   if (proposal.status === 'READY' && proposal.baseRevision === undefined) fail('a READY proposal requires baseRevision');
   string(proposal.message, 'proposal.message', 600, { optional: true }); string(proposal.createdAt, 'proposal.createdAt', 64);
+  const citations = array(proposal.citations ?? [], 'proposal.citations', 8);
+  for (const citation of citations) {
+    exact(citation, ['excerptId', 'evidenceId', 'source'], 'proposal citation');
+    string(citation.excerptId, 'proposal citation.excerptId', 100);
+    string(citation.evidenceId, 'proposal citation.evidenceId', 100);
+    string(citation.source, 'proposal citation.source', 200);
+  }
   if (!Number.isFinite(Date.parse(proposal.createdAt))) fail('proposal.createdAt is invalid');
   const changes = array(proposal.changes, 'proposal.changes', 16); unique(changes, 'proposal change');
   for (const change of changes) {

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, shell, safeStorage } = require('electron');
 const { spawn } = require('node:child_process');
 const http = require('node:http');
 const path = require('node:path');
@@ -71,6 +71,16 @@ function waitForServer(timeoutMs = 30000) {
 }
 
 function registerIpc(modelManager, inferenceService) {
+  const { EvidenceTools } = require('./evidence-tools.cjs');
+  const { ResearchTools } = require('./research-tools.cjs');
+  const evidenceTools = new EvidenceTools(store);
+  let savedResearchKey = '';
+  if (!process.env.BRAVE_SEARCH_API_KEY && safeStorage.isEncryptionAvailable()) {
+    const encrypted = store.preferenceGet('braveSearchApiKeyEncrypted', null);
+    if (typeof encrypted === 'string') { try { savedResearchKey = safeStorage.decryptString(Buffer.from(encrypted, 'base64')); } catch { /* machine-bound key: user can reconfigure */ } }
+  }
+  const researchTools = new ResearchTools({ evidenceTools, apiKey: process.env.BRAVE_SEARCH_API_KEY || savedResearchKey });
+  const { validateEngineeringState } = require('./engineering-state.cjs');
   const trusted = (event) => {
     const url = event.senderFrame?.url || '';
     const expected = isDev ? (process.env.PLANTLENS_DEV_URL || 'http://localhost:3000') : baseUrl;
@@ -89,6 +99,22 @@ function registerIpc(modelManager, inferenceService) {
   handle('plantlens:model-cancel', () => modelManager.cancel());
   handle('plantlens:model-unload', () => inferenceService.unload());
   handle('plantlens:companion-session', () => ({ url: 'http://127.0.0.1:43117', token: companionToken }));
+  handle('plantlens:evidence-import', input => evidenceTools.import(input));
+  handle('plantlens:evidence-list', () => evidenceTools.list());
+  handle('plantlens:evidence-search', input => evidenceTools.search(input));
+  handle('plantlens:evidence-read', input => evidenceTools.read(input));
+  handle('plantlens:web-research', input => researchTools.search(input));
+  handle('plantlens:research-status', () => researchTools.status());
+  handle('plantlens:research-configure', input => {
+    if (!input || typeof input.apiKey !== 'string' || !input.apiKey.trim() || input.apiKey.length > 256 || Object.keys(input).some(k => k !== 'apiKey')) throw new TypeError('apiKey must contain 1-256 characters');
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure credential storage is unavailable on this Windows account.');
+    const apiKey = input.apiKey.trim();
+    store.preferenceSet('braveSearchApiKeyEncrypted', safeStorage.encryptString(apiKey).toString('base64'));
+    return researchTools.configure(apiKey);
+  });
+  handle('plantlens:research-import', input => researchTools.importResult(input));
+  handle('plantlens:engineering-state-load', () => store.engineeringStateLoad());
+  handle('plantlens:engineering-state-save', (state, expectedRevision) => store.engineeringStateSave(validateEngineeringState(state), expectedRevision));
   let previous = '';
   const publish = () => {
     const status = { ...modelManager.status(), inference: inferenceService.status() };
