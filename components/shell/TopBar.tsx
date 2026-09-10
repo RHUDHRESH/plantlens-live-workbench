@@ -88,11 +88,11 @@ export function TopBar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <Button size="sm" variant="ghost" aria-label="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")} title={`Theme: ${theme}`}>
             {theme === "dark" ? <Moon size={14} /> : theme === "light" ? <Sun size={14} /> : <Monitor size={14} />}
           </Button>
-          <Button size="sm" variant={askOpen ? "primary" : "ghost"} onClick={() => setAskOpen(!askOpen)} aria-pressed={askOpen}>
+          <Button size="sm" aria-label="Ask PlantLens" variant={askOpen ? "primary" : "ghost"} onClick={() => setAskOpen(!askOpen)} aria-pressed={askOpen}>
             <MessageSquare size={14} />
             <span className="hidden sm:inline">Ask PlantLens</span>
           </Button>
-          <Button size="sm" variant="primary" onClick={() => setGuided({ active: true, stepIndex: 0, branch: "main", log: [] })} disabled={guided.active}>
+          <Button size="sm" aria-label="Run guided demo" variant="primary" onClick={() => setGuided({ active: true, stepIndex: 0, branch: "main", log: [] })} disabled={guided.active}>
             {guided.active ? <Play size={14} /> : <PlayCircle size={14} />}
             <span className="hidden sm:inline">Run guided demo</span>
           </Button>

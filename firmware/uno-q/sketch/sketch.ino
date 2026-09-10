@@ -8,6 +8,7 @@
 
 static constexpr unsigned long SAMPLE_INTERVAL_MS = 50;  // 20 Hz
 static constexpr unsigned long DESCRIPTOR_INTERVAL_MS = 5000;
+static constexpr int ADC_RESOLUTION_BITS = 12;
 
 unsigned long previousSampleMs = 0;
 unsigned long previousDescriptorMs = 0;
@@ -20,6 +21,9 @@ void publishDescriptor() {
 
 void setup() {
   Bridge.begin();
+  // Keep this in lock-step with the descriptor's 0..4095 raw-count range.
+  // Do not rely on a core- or board-specific default ADC width.
+  analogReadResolution(ADC_RESOLUTION_BITS);
   pinMode(A0, INPUT);
   pinMode(A1, INPUT);
   pinMode(A2, INPUT);
@@ -51,4 +55,3 @@ void loop() {
     publishDescriptor();
   }
 }
-

@@ -2,23 +2,16 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Activity, Bot, Cable, Check, ChevronRight, CircleAlert, Network, Play, ShieldCheck, Unplug, Waypoints } from "lucide-react";
+import { Bot, Check, ChevronRight, CircleAlert, Network, Play, ShieldCheck, Unplug } from "lucide-react";
 import { Badge, Button, Callout, Card, CardBody, CardHeader, Field, Input, PageHeader, Progress, Select, StatusBadge, Table, Td, Textarea, Th } from "@/components/ui";
 import { channelDisplay, useLiveWorkspace, type LiveMapping } from "./LiveWorkspace";
+import { FirmwareStudio, LiveOverview } from "./LiveExperience";
 
-export type LiveView = "overview" | "devices" | "assets" | "mappings" | "twin" | "agents" | "audit";
-
-const QUICK = [
-  ["/live/devices", "1. Connect", Cable],
-  ["/live/assets", "2. Build plant", Network],
-  ["/live/mappings", "3. Map channels", Waypoints],
-  ["/live/agents", "4. Review agents", Bot],
-  ["/live/twin", "5. Open twin", Activity],
-] as const;
+export type LiveView = "overview" | "devices" | "assets" | "mappings" | "twin" | "agents" | "audit" | "firmware";
 
 const LIVE_NAV = [
   ["/live", "Overview"], ["/live/devices", "Devices"], ["/live/assets", "Assets"],
-  ["/live/mappings", "Mappings"], ["/live/agents", "Agents"], ["/live/twin", "Twin"], ["/live/audit", "Audit"],
+  ["/live/mappings", "Mappings"], ["/live/agents", "Agents"], ["/live/twin", "Twin"], ["/live/audit", "Audit"], ["/live/firmware", "Firmware"],
 ] as const;
 
 function LiveSectionNav({ view }: { view: LiveView }) {
@@ -26,7 +19,7 @@ function LiveSectionNav({ view }: { view: LiveView }) {
   const currentHref = view === "overview" ? "/live" : `/live/${view}`;
   return <div className="mb-4 flex flex-wrap items-center gap-1 rounded-md border border-border bg-surface p-1.5">
     {LIVE_NAV.map(([href, label]) => <Link key={href} href={href} className={`rounded px-2.5 py-1 text-xs ${currentHref === href ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-2 hover:text-text"}`}>{label}</Link>)}
-    <label className="ml-auto flex items-center gap-2 text-xs text-muted">Review role
+    <label className="ml-auto flex items-center gap-2 text-xs text-muted">Demo role
       <Select aria-label="Live workspace role" value={live.role} onChange={(event) => live.setRole(event.target.value as typeof live.role)} className="h-7 text-xs">
         <option>Technician</option><option>Engineer</option><option>Supervisor</option><option>Administrator</option>
       </Select>
@@ -38,21 +31,6 @@ function SafetyBanner() {
   return <Callout tone="green" title="Observation-only hardware boundary">PlantLens can discover, verify, read, map, explain, and draft. It has no register-write, VFD-control, terminal, reset, interlock, delete-evidence, or firmware-flash capability.</Callout>;
 }
 
-function Overview() {
-  const live = useLiveWorkspace();
-  return <>
-    <PageHeader title="PlantLens Live" description="A judge-ready path from verified UNO Q telemetry to an evidence-backed induction-motor digital twin." badges={<><StatusBadge value={live.connection} /><Badge tone="green">READ ONLY</Badge></>} />
-    <SafetyBanner />
-    <div className="mt-4 grid gap-3 lg:grid-cols-5">
-      {QUICK.map(([href, label, Icon], index) => <Link key={href} href={href}><Card className="h-full transition-colors hover:border-accent"><CardBody><div className="flex items-center justify-between"><Icon size={18} className="text-accent" /><span className="tnum text-xs text-muted">0{index + 1}</span></div><p className="mt-5 font-medium">{label}</p><p className="mt-1 text-xs text-muted">{index === 0 ? "Explicit selection + identity handshake" : index === 1 ? "Versioned industrial asset classes" : index === 2 ? "Raw values stay unmapped until approved" : index === 3 ? "Ten specialists, one proposal at a time" : "Operational, health, and evidence state"}</p></CardBody></Card></Link>)}
-    </div>
-    <div className="mt-4 grid gap-3 lg:grid-cols-3">
-      <Card><CardHeader title="Connection contract" /><CardBody className="space-y-2 text-sm"><p><strong>Transport:</strong> COM, UNO Q service, secured LAN, or verified simulator</p><p><strong>Handshake:</strong> UUID, nonce, firmware, protocol, boot ID, schema hash</p><p><strong>Failure mode:</strong> fail closed; never guess a device or channel</p></CardBody></Card>
-      <Card><CardHeader title="Configuration state" /><CardBody className="space-y-2 text-sm"><p><strong>Revision:</strong> {live.revision}</p><p><strong>Approved assets:</strong> {live.assets.length}</p><p><strong>Approved mappings:</strong> {live.mappings.filter((mapping) => mapping.state === "APPROVED").length}</p></CardBody></Card>
-      <Card><CardHeader title="Honest execution modes" /><CardBody className="space-y-2 text-sm"><p><Badge tone="accent">LIVE LOCAL</Badge> Windows companion required</p><p><Badge tone="amber">VERIFIED SIMULATOR</Badge> Available for this hosted demo</p><p><Badge tone="grey">HARDWARE BLOCKED</Badge> Until sensor/VFD models are known</p></CardBody></Card>
-    </div>
-  </>;
-}
 
 function Devices() {
   const live = useLiveWorkspace();
@@ -93,14 +71,18 @@ function Assets() {
   </>;
 }
 
-function MappingTable({ mappings }: { mappings: LiveMapping[] }) {
+function MappingTable({ mappings, editable = false }: { mappings: LiveMapping[]; editable?: boolean }) {
   const live = useLiveWorkspace();
-  return <Table><thead><tr><Th>Raw channel</Th><Th>Target</Th><Th>Transform</Th><Th>Live value</Th><Th>Status</Th></tr></thead><tbody>{mappings.map((mapping) => {
+  const [editing, setEditing] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const selected = mappings.find(mapping => mapping.channelId === editing);
+  const update = (patch: Partial<LiveMapping>) => { if (!editing) return; try { live.editProposalMapping(editing, patch); setError(""); } catch (cause) { setError(cause instanceof Error ? cause.message : "Invalid mapping"); } };
+  return <><Table><thead><tr><Th>Raw channel</Th><Th>Target</Th><Th>Transform</Th><Th>Live value</Th><Th>Status</Th>{editable ? <Th>Review</Th> : null}</tr></thead><tbody>{mappings.map((mapping) => {
     const channel = live.profile?.channels.find((item) => item.id === mapping.channelId);
     const raw = live.latest[mapping.channelId]?.value;
     const normalized = typeof raw === "number" ? raw * mapping.scale + mapping.offset : raw;
-    return <tr key={mapping.channelId}><Td><code>{mapping.channelId}</code><p className="text-xs text-muted">{channel?.rawUnit ?? "unknown"}</p></Td><Td>{mapping.assetId ? <><strong>{mapping.assetId}</strong><p className="text-xs text-muted">{mapping.signal}</p></> : <span className="text-muted">Not assigned</span>}</Td><Td className="font-mono text-xs">y = {mapping.scale}·x + {mapping.offset}</Td><Td className="tnum">{normalized === undefined ? "—" : `${typeof normalized === "number" ? normalized.toFixed(2) : normalized} ${mapping.canonicalUnit}`}</Td><Td><StatusBadge value={mapping.state} /></Td></tr>;
-  })}</tbody></Table>;
+    return <tr key={mapping.channelId}><Td><code>{mapping.channelId}</code><p className="text-xs text-muted">{channel?.rawUnit ?? "unknown"}</p></Td><Td>{mapping.assetId ? <><strong>{mapping.assetId}</strong><p className="text-xs text-muted">{mapping.signal}</p></> : <span className="text-muted">Not assigned</span>}</Td><Td className="font-mono text-xs">y = {mapping.scale}·x + {mapping.offset}</Td><Td className="tnum">{normalized === undefined ? "—" : `${typeof normalized === "number" ? normalized.toFixed(2) : normalized} ${mapping.canonicalUnit}`}</Td><Td><StatusBadge value={mapping.state} /></Td>{editable ? <Td><Button size="sm" variant="outline" aria-label={`Edit ${mapping.channelId}`} onClick={()=>setEditing(mapping.channelId)}>Edit</Button></Td> : null}</tr>;
+  })}</tbody></Table>{selected && editable ? <div className="mt-4 rounded-lg border border-accent/30 bg-accent-soft p-4"><div className="mb-3 flex items-center justify-between"><strong className="text-sm">Edit binding · {selected.channelId}</strong><Button size="sm" variant="ghost" onClick={()=>setEditing(null)}>Done</Button></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{(["assetId","signal","canonicalUnit"] as const).map(key=><Field key={key} label={key}><Input aria-label={`Binding ${key}`} value={selected[key]} onChange={event=>update({[key]:event.target.value})}/></Field>)}{(["scale","offset"] as const).map(key=><Field key={key} label={key}><Input aria-label={`Binding ${key}`} type="number" step="any" value={selected[key]} onChange={event=>update({[key]:event.target.value === "" ? Number.NaN : Number(event.target.value)})}/></Field>)}</div><p className="mt-3 text-xs text-muted">Edits affect this draft. The active configuration changes only after approval.</p>{error ? <p role="alert" className="mt-2 text-sm text-red">{error}</p> : null}</div> : null}</>;
 }
 
 function Mappings() {
@@ -128,7 +110,7 @@ function Agents() {
     {live.proposal ? <Card className="mt-4"><CardHeader title={live.proposal.title} description={`Proposal ${live.proposal.id} · based on revision ${live.proposal.baseRevision}`} actions={<StatusBadge value={live.proposal.status} />} /><CardBody className="space-y-4">
       <div className="grid gap-3 lg:grid-cols-2"><Field label="Editable description"><Textarea aria-label="Editable proposal description" rows={4} value={live.proposal.description} disabled={live.proposal.status !== "IN_REVIEW"} onChange={(event) => live.editProposal(event.target.value)} /></Field><div><p className="mb-1 text-xs font-medium text-muted">Evidence</p><ul className="space-y-1 text-sm">{live.proposal.citations.map((citation) => <li key={citation.label}>{citation.url ? <a className="text-accent underline" href={citation.url} target="_blank" rel="noreferrer">{citation.label}</a> : citation.label}</li>)}</ul></div></div>
       <Callout tone="amber" title="Unverified assumptions">{live.proposal.assumptions.map((assumption) => <p key={assumption}>• {assumption}</p>)}</Callout>
-      <MappingTable mappings={live.proposal.mappings} />
+      <MappingTable mappings={live.proposal.mappings} editable={live.proposal.status === "IN_REVIEW"} />
       {live.proposal.validation.warnings.map((warning) => <p key={warning} className="flex gap-2 text-xs text-amber"><CircleAlert size={14} />{warning}</p>)}
       {live.proposal.status === "IN_REVIEW" ? <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3"><Button variant="primary" onClick={approve}><ShieldCheck size={14} /> Approve immutable revision</Button><div className="min-w-64 flex-1"><Field label="Rejection reason"><Input aria-label="Rejection reason" value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} /></Field></div><Button variant="outline" onClick={() => live.rejectProposal(rejectReason)}>Reject</Button></div> : null}
     </CardBody></Card> : null}
@@ -165,6 +147,6 @@ export function LivePlatform({ view }: { view: LiveView }) {
         : view === "agents" ? <Agents />
           : view === "twin" ? <Twin />
             : view === "audit" ? <Audit />
-              : <Overview />;
+              : view === "firmware" ? <FirmwareStudio /> : <LiveOverview />;
   return <><LiveSectionNav view={view} />{content}</>;
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import { DemoReadOnlyTransport, DeviceProfileSchema, LiveConnectionController, type ChannelDescriptor, type DeviceProfile } from "@/lib/live";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { DEMO_DEVICE_UUID, DemoReadOnlyTransport, DeviceProfileSchema, LiveConnectionController, type ChannelDescriptor, type DeviceProfile } from "@/lib/live";
 
 export type LiveRole = "Technician" | "Engineer" | "Supervisor" | "Administrator";
 export type MappingState = "UNMAPPED" | "PROPOSED" | "APPROVED";
@@ -97,6 +97,7 @@ interface LiveWorkspaceValue {
   disconnect: () => Promise<void>;
   runAgents: (description: string) => Promise<void>;
   editProposal: (description: string) => void;
+  editProposalMapping: (channelId: string, patch: Partial<Pick<LiveMapping, "assetId" | "signal" | "canonicalUnit" | "scale" | "offset">>) => void;
   approveProposal: () => void;
   rejectProposal: (reason: string) => void;
 }
@@ -117,11 +118,14 @@ function approvedAssets(): LiveAsset[] {
   ];
 }
 
-function proposedMappings(profile: DeviceProfile): LiveMapping[] {
+export function proposedMappings(profile: DeviceProfile): LiveMapping[] {
+  const isDemo = profile.deviceUuid === DEMO_DEVICE_UUID;
   const choices: Record<string, Omit<LiveMapping, "channelId" | "state">> = {
     "sensor.vibration_rms": { assetId: "MTR-01", signal: "vibration_rms", canonicalUnit: "mm/s", scale: 1, offset: 0 },
-    "sensor.bearing_temperature": { assetId: "MTR-01", signal: "bearing_temperature", canonicalUnit: "°C", scale: 1, offset: 0 },
-    "sensor.shaft_pulses": { assetId: "MTR-01", signal: "shaft_speed", canonicalUnit: "rpm", scale: 1, offset: 0 },
+    "sensor.bearing_temperature": { assetId: "MTR-01", signal: "bearing_temperature", canonicalUnit: "°C", scale: 6.25, offset: -25 },
+    "sensor.shaft_pulses": isDemo
+      ? { assetId: "MTR-01", signal: "shaft_speed", canonicalUnit: "rpm", scale: 60, offset: 0 }
+      : { assetId: "", signal: "", canonicalUnit: profile.channels.find((channel) => channel.id === "sensor.shaft_pulses")?.rawUnit ?? "pulses", scale: 1, offset: 0 },
     "vfd.output_frequency": { assetId: "VFD-01", signal: "output_frequency", canonicalUnit: "Hz", scale: 0.01, offset: 0 },
     "vfd.output_current": { assetId: "VFD-01", signal: "output_current", canonicalUnit: "A", scale: 0.1, offset: 0 },
     "vfd.dc_bus_voltage": { assetId: "VFD-01", signal: "dc_bus_voltage", canonicalUnit: "V", scale: 1, offset: 0 },
@@ -150,6 +154,12 @@ export function LiveWorkspaceProvider({ children }: { children: React.ReactNode 
     makeAudit("system", "SAFETY_BOUNDARY_INITIALIZED", "live-workspace", "Read-only hardware capability. No write, terminal, reset, or firmware tool exists."),
   ]);
   const [companionCandidates, setCompanionCandidates] = useState<LiveWorkspaceValue["companionCandidates"]>([]);
+
+  useEffect(() => () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    streamAbortRef.current?.abort();
+    void controllerRef.current?.disconnect();
+  }, []);
 
   const appendAudit = useCallback((kind: string, subject: string, detail: string) => {
     setAudit((events) => [makeAudit(role, kind, subject, detail), ...events].slice(0, 500));
@@ -191,6 +201,8 @@ export function LiveWorkspaceProvider({ children }: { children: React.ReactNode 
     if (!/^COM\d+$/i.test(path)) throw new Error("Select one explicit COM port.");
     const candidate = companionCandidates.find((item) => item.path.toLowerCase() === path.toLowerCase());
     if (!candidate || candidate.recoveryMode) throw new Error("The selected port is unavailable or is a recovery/EDL device.");
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
     setConnection("HANDSHAKING");
     const response = await companionFetch(url, token, "/v1/connect/serial", { method: "POST", body: JSON.stringify({ path, actor: role }) });
     const payload = await response.json() as { descriptor: {
@@ -243,6 +255,8 @@ export function LiveWorkspaceProvider({ children }: { children: React.ReactNode 
   }, [appendAudit, companionCandidates, companionFetch, role]);
 
   const connectDemo = useCallback(async () => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
     if (!controllerRef.current) await discover();
     const controller = controllerRef.current;
     if (!controller) return;
@@ -298,32 +312,28 @@ export function LiveWorkspaceProvider({ children }: { children: React.ReactNode 
     setRunningAgents(true);
     setCurrentAgent(0);
     appendAudit("AGENT_RUN_STARTED", "agent-team", "Bounded ten-specialist workflow started from an operator description.");
-    const graphRequest = fetch("/api/live/configure", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ request: description, hasVerifiedDevice: true, hasExactHardwareModels: false }),
-    });
-    for (let index = 0; index < SPECIALISTS.length; index += 1) {
-      setCurrentAgent(index);
-      await wait(110);
-    }
-    const graphResponse = await graphRequest;
-    if (!graphResponse.ok) {
-      setRunningAgents(false);
-      throw new Error("The bounded LangGraph workflow did not complete.");
-    }
-    const graphResult = await graphResponse.json() as { completed: string[]; activationBlocked: boolean };
-    if (graphResult.completed.length !== SPECIALISTS.length || !graphResult.activationBlocked) {
-      setRunningAgents(false);
-      throw new Error("The specialist graph returned an invalid hardware-safety result.");
-    }
-    const next: LiveProposal = {
+    try {
+      const graphRequest = fetch("/api/live/configure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request: description, hasVerifiedDevice: true, hasExactHardwareModels: false }),
+      });
+      for (let index = 0; index < SPECIALISTS.length; index += 1) {
+        setCurrentAgent(index);
+        await wait(110);
+      }
+      const graphResponse = await graphRequest;
+      if (!graphResponse.ok) throw new Error("The bounded LangGraph workflow did not complete.");
+      const graphResult = await graphResponse.json() as { completed: string[]; activationBlocked: boolean };
+      if (graphResult.completed.length !== SPECIALISTS.length || !graphResult.activationBlocked) throw new Error("The specialist graph returned an invalid hardware-safety result.");
+      const isDemo = profile.deviceUuid === DEMO_DEVICE_UUID;
+      const next: LiveProposal = {
       id: `CFG-PROP-${Date.now()}`,
       title: "Create induction-motor monitoring twin",
       baseRevision: revision,
       description,
       assumptions: [
-        "The connected source is the explicitly labelled verified simulator, not physical plant telemetry.",
+        ...(isDemo ? ["The connected source is the explicitly labelled verified simulator, not physical plant telemetry.", "Demo shaft speed assumes the reported pulse count is a one-second count from a one-pulse-per-revolution sensor."] : []),
         "The real VFD model and three sensor part numbers are still unknown; physical mappings remain blocked.",
         "All device and VFD access is read-only.",
       ],
@@ -335,23 +345,38 @@ export function LiveWorkspaceProvider({ children }: { children: React.ReactNode 
       mappings: proposedMappings(profile),
       assets: approvedAssets(),
       status: "IN_REVIEW",
-      validation: { errors: [], warnings: ["Hardware activation requires the exact VFD and sensor manuals.", "Demonstration register addresses are not transferable to a real VFD."] },
+      validation: { errors: isDemo ? [] : ["Physical mapping activation is forbidden until exact hardware manuals are attached and verified."], warnings: ["Hardware activation requires the exact VFD and sensor manuals.", "Demonstration register addresses are not transferable to a real VFD."] },
     };
-    setProposal(next);
-    setMappings(next.mappings);
-    setRunningAgents(false);
-    setCurrentAgent(SPECIALISTS.length);
-    appendAudit("PROPOSAL_READY", next.id, "One configuration proposal is awaiting engineer review; no active configuration was changed.");
+      setProposal(next);
+      setCurrentAgent(SPECIALISTS.length);
+      appendAudit("PROPOSAL_READY", next.id, "One configuration proposal is awaiting engineer review; no active configuration was changed.");
+    } finally {
+      setRunningAgents(false);
+    }
   }, [appendAudit, profile, proposal, revision]);
 
   const editProposal = useCallback((description: string) => {
-    setProposal((current) => current ? { ...current, description } : current);
+    if (!proposal || proposal.status !== "IN_REVIEW") throw new Error("Only an in-review proposal can be edited.");
+    setProposal({ ...proposal, description });
     appendAudit("PROPOSAL_EDITED", proposal?.id ?? "none", "Human edited the draft; validation must remain clean before approval.");
+  }, [appendAudit, proposal]);
+
+  const editProposalMapping: LiveWorkspaceValue["editProposalMapping"] = useCallback((channelId, patch) => {
+    if (!proposal || proposal.status !== "IN_REVIEW") throw new Error("Only an in-review proposal can be edited.");
+    const current = proposal.mappings.find((mapping) => mapping.channelId === channelId);
+    if (!current) throw new Error("The proposal does not contain that channel.");
+    const next = { ...current, ...patch, channelId: current.channelId, state: "PROPOSED" as const };
+    if (!next.assetId.trim() || !next.signal.trim() || !next.canonicalUnit.trim()) throw new Error("Asset, signal, and canonical unit are required.");
+    if (!Number.isFinite(next.scale) || next.scale === 0 || !Number.isFinite(next.offset)) throw new Error("Scale must be a finite non-zero number and offset must be finite.");
+    setProposal({ ...proposal, mappings: proposal.mappings.map((mapping) => mapping.channelId === channelId ? next : mapping) });
+    appendAudit("PROPOSAL_MAPPING_EDITED", proposal.id, `Human edited proposed mapping ${channelId}; active mappings were unchanged.`);
   }, [appendAudit, proposal]);
 
   const approveProposal = useCallback(() => {
     if (!proposal || proposal.status !== "IN_REVIEW") return;
     if (role !== "Engineer" && role !== "Supervisor" && role !== "Administrator") throw new Error("Engineer approval is required.");
+    if (proposal.baseRevision !== revision) throw new Error(`Proposal is based on revision ${proposal.baseRevision}, but revision ${revision} is active. Run the agents again.`);
+    if (proposal.validation.errors.length > 0) throw new Error(proposal.validation.errors.join(" "));
     setProposal({ ...proposal, status: "APPROVED" });
     setAssets(proposal.assets);
     setMappings(proposal.mappings.map((mapping) => ({ ...mapping, state: "APPROVED" })));
@@ -362,11 +387,10 @@ export function LiveWorkspaceProvider({ children }: { children: React.ReactNode 
   const rejectProposal = useCallback((reason: string) => {
     if (!proposal || proposal.status !== "IN_REVIEW" || !reason.trim()) return;
     setProposal({ ...proposal, status: "REJECTED" });
-    setMappings((profile?.channels ?? []).map((channel) => ({ channelId: channel.id, assetId: "", signal: "", canonicalUnit: channel.rawUnit, scale: 1, offset: 0, state: "UNMAPPED" })));
     appendAudit("PROPOSAL_REJECTED", proposal.id, reason);
-  }, [appendAudit, profile, proposal]);
+  }, [appendAudit, proposal]);
 
-  const value = useMemo<LiveWorkspaceValue>(() => ({ role, setRole, connection, connectionDetail, profile, classes: CORE_CLASSES, specialists: SPECIALISTS, currentAgent, runningAgents, assets, mappings, proposal, revision, latest, audit, companionCandidates, discover, discoverCompanion, connectCompanion, connectDemo, disconnect, runAgents, editProposal, approveProposal, rejectProposal }), [role, connection, connectionDetail, profile, currentAgent, runningAgents, assets, mappings, proposal, revision, latest, audit, companionCandidates, discover, discoverCompanion, connectCompanion, connectDemo, disconnect, runAgents, editProposal, approveProposal, rejectProposal]);
+  const value = useMemo<LiveWorkspaceValue>(() => ({ role, setRole, connection, connectionDetail, profile, classes: CORE_CLASSES, specialists: SPECIALISTS, currentAgent, runningAgents, assets, mappings, proposal, revision, latest, audit, companionCandidates, discover, discoverCompanion, connectCompanion, connectDemo, disconnect, runAgents, editProposal, editProposalMapping, approveProposal, rejectProposal }), [role, connection, connectionDetail, profile, currentAgent, runningAgents, assets, mappings, proposal, revision, latest, audit, companionCandidates, discover, discoverCompanion, connectCompanion, connectDemo, disconnect, runAgents, editProposal, editProposalMapping, approveProposal, rejectProposal]);
 
   return <LiveWorkspaceContext.Provider value={value}>{children}</LiveWorkspaceContext.Provider>;
 }

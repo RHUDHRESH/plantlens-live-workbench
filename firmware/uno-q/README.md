@@ -2,7 +2,13 @@
 
 This Arduino App Lab project follows the official dual-brain app structure: `python/main.py` runs on Debian and `sketch/sketch.ino` runs on the STM32 MCU.
 
-The sketch samples `A0`, `A1`, and `A2` at 20 Hz and publishes only uncalibrated ADC counts. The Linux app exposes a self-describing GET/WebSocket service through the official WebUI brick. It has no write, reset, pin-control, VFD-control, terminal, or firmware endpoint.
+The sketch explicitly configures 12-bit ADC reads, samples `A0`, `A1`, and `A2` at 20 Hz, and publishes only uncalibrated counts in the declared `0..4095` range. The Linux app exposes a self-describing GET/WebSocket service through the official WebUI brick. It has no write, reset, pin-control, VFD-control, terminal, or firmware endpoint.
+
+The gateway rejects non-integer bridge fields, out-of-range sequence/timestamp values, and ADC counts outside the descriptor range. `GET /plantlens/v1/health` reports `descriptorMismatchCount` and `rejectedSamples` for diagnostics; it never includes raw exception or environment details.
+
+## Verification status
+
+This directory is an integration scaffold reviewed for protocol consistency. It has **not** been compiled for UNO Q, flashed, electrically validated, or exercised against real sensors in this repository. Before deployment, compile it with the target App Lab/core versions, verify that the core supports `analogReadResolution(12)`, then bench-test sample rate, ADC range, reconnect behavior, and WebUI delivery using isolated low-voltage test signals.
 
 ## Safety gate
 

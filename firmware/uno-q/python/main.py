@@ -85,6 +85,8 @@ samples = deque(maxlen=512)
 last_sample_at = None
 last_sequence = None
 descriptor_seen = False
+descriptor_mismatch_count = 0
+rejected_sample_count = 0
 
 
 def get_descriptor():
@@ -107,33 +109,59 @@ def get_health():
         "lastSequence": last_sequence,
         "sampleAgeMs": age_ms,
         "descriptorSeen": descriptor_seen,
+        "descriptorMismatchCount": descriptor_mismatch_count,
+        "rejectedSamples": rejected_sample_count,
         "bufferedSamples": len(samples),
     }
 
 
 def on_descriptor(magic: str, board: str, firmware: str, channel_count: int, rate_hz: int):
-    global descriptor_seen
+    global descriptor_seen, descriptor_mismatch_count
     # The MCU announcement is checked, never used to mutate the static descriptor.
-    descriptor_seen = (
-        magic == "PLANTLENS/1"
-        and board == "UNO-Q"
-        and firmware == "pl-fw-0.1.0"
-        and int(channel_count) == len(CHANNELS)
-        and int(rate_hz) == 20
-    )
+    try:
+        descriptor_seen = (
+            magic == "PLANTLENS/1"
+            and board == "UNO-Q"
+            and firmware == "pl-fw-0.1.0"
+            and int(channel_count) == len(CHANNELS)
+            and int(rate_hz) == 20
+        )
+    except (TypeError, ValueError):
+        descriptor_seen = False
+    if not descriptor_seen:
+        descriptor_mismatch_count += 1
+        logger.warning("Rejected incompatible MCU descriptor")
 
 
 def on_sample(sequence: int, device_ms: int, sensor_1: int, sensor_2: int, sensor_3: int):
-    global last_sample_at, last_sequence
+    global last_sample_at, last_sequence, rejected_sample_count
+    try:
+        sequence = int(sequence)
+        device_ms = int(device_ms)
+        values = [int(sensor_1), int(sensor_2), int(sensor_3)]
+    except (TypeError, ValueError):
+        rejected_sample_count += 1
+        logger.warning("Rejected MCU sample containing non-integer fields")
+        return
+
+    if sequence < 0 or sequence > 0xFFFFFFFF or device_ms < 0 or device_ms > 0xFFFFFFFF:
+        rejected_sample_count += 1
+        logger.warning("Rejected MCU sample with invalid sequence or device timestamp")
+        return
+
+    if any(value < channel["minimum"] or value > channel["maximum"] for channel, value in zip(CHANNELS, values)):
+        rejected_sample_count += 1
+        logger.warning("Rejected MCU sample outside the declared ADC range")
+        return
+
     received_ms = int(time.time() * 1000)
-    values = [int(sensor_1), int(sensor_2), int(sensor_3)]
     batch = {
         "type": "sample",
         "deviceUuid": DEVICE_UUID,
         "schemaHash": SCHEMA_HASH,
         "bootId": BOOT_ID,
-        "sequence": int(sequence),
-        "deviceTimeMs": int(device_ms),
+        "sequence": sequence,
+        "deviceTimeMs": device_ms,
         "receivedTimeMs": received_ms,
         "quality": "GOOD" if descriptor_seen else "SUSPECT",
         "values": [
@@ -143,7 +171,7 @@ def on_sample(sequence: int, device_ms: int, sensor_1: int, sensor_2: int, senso
     }
     samples.append(batch)
     last_sample_at = time.monotonic()
-    last_sequence = int(sequence)
+    last_sequence = sequence
     try:
         web_ui.send_message("plantlens_sample", batch)
     except Exception as exc:
