@@ -1,6 +1,8 @@
-# PlantLens
+# PlantLens Live Workbench
 
-PlantLens is a local-first factory maintenance and recovery workbench built by VoltMind. The bundled experience uses a fictional automotive-component factory near Chennai and explicitly labels all generated observations as **SIMULATION**—it is not connected to a live factory.
+Companion workbench for [PlantLens](https://github.com/RHUDHRESH/Plantlens): a local-first factory maintenance and recovery workbench built by VoltMind. The bundled experience uses a fictional automotive-component factory near Chennai and explicitly labels all generated observations as **SIMULATION**—it is not connected to a live factory.
+
+**Stack:** Next.js 16 · React 19 · TypeScript · LangGraph.js · Zustand · Vitest · Playwright · Node companion (`companion/`) · Electron desktop shell (`desktop/`) · Arduino UNO Q firmware (`firmware/uno-q/`)
 
 ## What works
 
@@ -15,7 +17,7 @@ PlantLens is a local-first factory maintenance and recovery workbench built by V
 - Judge-ready Live workspace with verified-device simulation, raw-channel discovery, a versioned asset library, mapping review, LangGraph.js specialists, and a digital twin
 - Read-only Windows companion and Arduino UNO Q App Lab firmware scaffold under `companion/` and `firmware/uno-q/`
 
-## Run locally
+## Quick start
 
 ```bash
 npm ci
